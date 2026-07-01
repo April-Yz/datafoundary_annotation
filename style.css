@@ -164,6 +164,11 @@ button:hover {
   margin-bottom: 5px;
 }
 
+.timeline-info.warn {
+  color: var(--bad);
+  font-weight: 700;
+}
+
 .subtask-timeline {
   position: relative;
   height: 34px;

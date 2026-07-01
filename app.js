@@ -624,10 +624,17 @@ function renderSubtaskTimeline() {
   const sourceText = sourceSubtaskInfoText();
   const expectedBp = expectedBreakpointCount();
   const bpSummary = currentBreakpointSummary();
+  const sourceEnd = sourceSegments.reduce((mx, seg) => Math.max(mx, Number(seg.end_time) || 0), 0);
+  const sourceGap = sourceSegments.length && duration > 0 ? duration - sourceEnd : 0;
+  const sourceMismatch = sourceGap > Math.max(2.0, duration * 0.05);
   const sourceHint = sourceSegments.length || sourceBps.length
     ? `灰色=原始参考，仅显示不保存`
     : `无可视化原始参考`;
-  info.textContent = `${sourceText}；${sourceHint}；红色=当前可保存断点 ${currentBps.length}/${expectedBp}${bpSummary ? `：${bpSummary}` : ""}。上限=${expectedBp}；按 S 或按钮添加/取消，Reset 清空当前断点。`;
+  const mismatchHint = sourceMismatch
+    ? ` ⚠️ 源分段只覆盖到 ${formatTime(sourceEnd)}，但视频/时间轴到 ${formatTime(duration)}；可能是测试包或 metadata 与视频不一致，请以视频为准重标/核对。`
+    : "";
+  info.classList.toggle("warn", Boolean(sourceMismatch));
+  info.textContent = `${sourceText}；${sourceHint}；红色=当前可保存断点 ${currentBps.length}/${expectedBp}${bpSummary ? `：${bpSummary}` : ""}。上限=${expectedBp}；按 S 或按钮添加/取消，Reset 清空当前断点。${mismatchHint}`;
 
   if (duration <= 0) {
     updateTimelinePlayhead();
