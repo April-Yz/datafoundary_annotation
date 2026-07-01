@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+annotations.jsonl
+annotations_latest.json
+videos/
+previews/
+*.tar
+*.tar.gz
+*.zip

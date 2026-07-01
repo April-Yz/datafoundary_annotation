@@ -1,0 +1,85 @@
+{
+  "version": "2026-07-01-v13",
+  "description": "Task relabel UI config. Normal workflow: choose chassis type and object, press Enter. Action prefix is optional and defaults to none.",
+  "chassis_types": [
+    {"key": "6", "value": "large_case", "label": "6 大机箱"},
+    {"key": "7", "value": "small_case", "label": "7 小机箱"}
+  ],
+  "action_prefixes": [
+    {"key": "0", "value": "none", "label": "0 none / full-task label", "default": true},
+    {"key": "1", "value": "pick_up", "label": "1 pick_up"},
+    {"key": "2", "value": "insert", "label": "2 insert"},
+    {"key": "3", "value": "pick_up_and_insert", "label": "3 pick_up_and_insert"},
+    {"key": "9", "value": "other_action", "label": "9 other_action"}
+  ],
+  "objects": [
+    {"key": "1", "value": "cpu", "label": "1 cpu"},
+    {"key": "2", "value": "disk", "label": "2 disk"},
+    {"key": "3", "value": "gpu", "label": "3 gpu"},
+    {"key": "4", "value": "ram", "label": "4 ram"},
+    {"key": "5", "value": "ram2", "label": "5 ram2"},
+    {"key": "8", "value": "custom_object", "label": "8 自定义 object"}
+  ],
+  "subtask_schema_source": "data_foundary/vqa_hl_generation_pipeline/config.yaml",
+  "subtask_template_map": {
+    "cpu": "cpu",
+    "disk": "disk",
+    "gpu": "gpu",
+    "ram": "ram",
+    "ram2": "ram"
+  },
+  "subtask_schemas": {
+    "cpu": [
+      {"id": "1", "label": "cpu_subtask_1", "prompt": "move the gripper to the CPU"},
+      {"id": "2", "label": "cpu_subtask_2", "prompt": "grasp the cpu and move it towards the insertion slot"},
+      {"id": "3", "label": "cpu_subtask_3", "prompt": "place the cpu into insertion slot"},
+      {"id": "4", "label": "cpu_subtask_4", "prompt": "close the cover"},
+      {"id": "5", "label": "cpu_subtask_5", "prompt": "install the locking lever"},
+      {"id": "6", "label": "cpu_subtask_6", "prompt": "install the second locking lever"}
+    ],
+    "disk": [
+      {"id": "1", "label": "disk_subtask_1", "prompt": "reach for the disk"},
+      {"id": "2", "label": "disk_subtask_2", "prompt": "grasp the disk and insert it into the insertion slot"},
+      {"id": "3", "label": "disk_subtask_3", "prompt": "insert the first wire"},
+      {"id": "4", "label": "disk_subtask_4", "prompt": "insert the disk into the slot"}
+    ],
+    "gpu": [
+      {"id": "1", "label": "gpu_subtask_1", "prompt": "reach for the GPU"},
+      {"id": "2", "label": "gpu_subtask_2", "prompt": "grasp the gpu and move the gpu toward the slot"},
+      {"id": "3", "label": "gpu_subtask_3", "prompt": "insert the gpu into the slot"},
+      {"id": "4", "label": "gpu_subtask_4", "prompt": "press down on the gpu until it lock into place"}
+    ],
+    "ram": [
+      {"id": "1", "label": "ram_subtask_1", "prompt": "reach for the RAM"},
+      {"id": "2", "label": "ram_subtask_2", "prompt": "grasp the ram and move it above insertion slot"},
+      {"id": "3", "label": "ram_subtask_3", "prompt": "insert the RAM"},
+      {"id": "4", "label": "ram_subtask_4", "prompt": "press down the ram on one side"},
+      {"id": "5", "label": "ram_subtask_5", "prompt": "press down the ram on the other side"}
+    ]
+  },
+  "canonical_rule": "If action_prefix is none, canonical_label = object. Otherwise canonical_label = action_prefix + '_' + object.",
+  "hotkeys": {
+    "chassis_large_case": "6",
+    "chassis_small_case": "7",
+    "object_digits": "1-5,8",
+    "action_none": "0",
+    "action_pick_up": "q",
+    "action_insert": "w",
+    "action_pick_up_and_insert": "e",
+    "action_other": "9",
+    "bad_video": "b",
+    "main_view_severe_offset": "c",
+    "has_jump": "d",
+    "save_next": "Enter",
+    "previous": "ArrowLeft",
+    "next": "ArrowRight",
+    "play_pause": "Space",
+    "frame_back": ",",
+    "frame_forward": ".",
+    "frame_back_10": "<",
+    "frame_forward_10": ">",
+    "speed_down": "[",
+    "speed_up": "]",
+    "subtask_toggle_breakpoint": "s"
+  }
+}

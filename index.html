@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Task Label Annotation</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <header class="topbar">
+      <div>
+        <h1>任务名称标注</h1>
+        <p class="muted">不显示原 prompt。每条都必须选择大机箱/小机箱；正常视频：选物体 → Enter。子任务才选 action；坏视频按 B，主视角偏移按 C，跳变按 D。</p>
+      </div>
+      <div class="status-card">
+        <div id="progressText">Loading…</div>
+        <div id="saveStatus" class="muted">未保存</div>
+      </div>
+    </header>
+
+    <section class="item-bar">
+      <button id="prevBtn">← 上一个</button>
+      <button id="nextBtn">下一个 →</button>
+      <div class="timestamp-box">
+        <span class="muted">timestamp</span>
+        <code id="timestampText">-</code>
+      </div>
+    </section>
+
+    <section class="preview-panel">
+      <h2>快速预览：开始 / 中间 / 结束</h2>
+      <div id="previewGrid" class="preview-grid"></div>
+    </section>
+
+    <section id="videoGrid" class="video-grid"></section>
+
+    <section class="quality-panel">
+      <label class="bad-video">
+        <input id="badVideo" type="checkbox" />
+        B：bad video / 看不清 / 视频坏
+      </label>
+      <label class="quality-flag quality-danger">
+        <input id="mainViewSevereOffset" type="checkbox" />
+        C：主视角严重偏移
+      </label>
+      <label class="quality-flag quality-danger">
+        <input id="hasJump" type="checkbox" />
+        D：是否跳变
+      </label>
+    </section>
+
+    <section class="playback-panel">
+      <div class="playback-controls">
+        <button id="playPauseBtn">Space 播放/暂停</button>
+        <button id="stepBack10Btn">&lt; -10f</button>
+        <button id="stepBack1Btn">, -1f</button>
+        <button id="stepForward1Btn">. +1f</button>
+        <button id="stepForward10Btn">&gt; +10f</button>
+        <button id="speedDownBtn">[ 降速</button>
+        <button id="speedUpBtn">] 升速</button>
+        <label>
+          倍速
+          <select id="speedSelect">
+            <option value="0.1">0.1×</option>
+            <option value="0.25">0.25×</option>
+            <option value="0.5">0.5×</option>
+            <option value="0.75">0.75×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.25">1.25×</option>
+            <option value="1.5">1.5×</option>
+            <option value="2">2×</option>
+            <option value="3">3×</option>
+          </select>
+        </label>
+        <span class="time-readout">
+          <code id="currentTimeText">00:00.00</code> / <code id="durationText">00:00.00</code>
+          · frame <code id="currentFrameText">0</code> / <code id="durationFrameText">0</code>
+        </span>
+      </div>
+      <input id="syncSeek" class="seek-full" type="range" min="0" max="0" value="0" step="0.0666667" />
+      <div class="subtask-timeline-wrap">
+        <div id="subtaskTimelineInfo" class="timeline-info">灰色为原始参考分段；红色为当前可保存断点。把视频停在目标帧，按 S 添加或取消断点。</div>
+        <div id="subtaskTimeline" class="subtask-timeline">
+          <div id="timelinePlayhead" class="timeline-playhead"></div>
+        </div>
+        <div class="breakpoint-controls">
+          <button id="toggleBreakpointBtn" type="button">S 添加/取消当前帧断点</button>
+          <button id="resetBreakpointsBtn" type="button">Reset 清空当前断点</button>
+        </div>
+        <div id="breakpointWarning" class="breakpoint-warning" aria-live="polite"></div>
+      </div>
+      <div class="jump-controls">
+        <label>跳到帧 <input id="jumpFrameInput" type="number" min="0" step="1" placeholder="frame" /></label>
+        <button id="jumpFrameBtn">跳转</button>
+        <label>跳到秒 <input id="jumpSecondInput" type="number" min="0" step="0.067" placeholder="seconds" /></label>
+        <button id="jumpSecondBtn">跳转</button>
+      </div>
+      <p class="muted">这个进度条在视频下方，会同步拖动三个视频；逐帧步长按 15Hz 计算。</p>
+    </section>
+
+    <section class="label-panel">
+      <div class="label-column chassis-column">
+        <h2>机箱类型 Chassis（必选，无默认）</h2>
+        <div id="chassisButtons" class="button-grid chassis-grid"></div>
+        <p class="required-hint">每条都必须选择：大机箱或小机箱。未选择时不能保存。</p>
+      </div>
+      <div class="label-column">
+        <h2>物体 Object（默认只选这个）</h2>
+        <div id="objectButtons" class="button-grid"></div>
+        <label id="customObjectBox" class="custom-object hidden">
+          自定义物体名
+          <input id="customObjectInput" type="text" placeholder="例如 motherboard / cable / screw" />
+        </label>
+      </div>
+      <div class="label-column">
+        <h2>动作前缀 Action（默认 none）</h2>
+        <div id="actionButtons" class="button-grid"></div>
+        <p class="muted">快捷键：0 none，Q pick_up，W insert，E pick_up_and_insert，9 other_action。</p>
+      </div>
+    </section>
+
+    <section class="subtask-panel">
+      <div class="subtask-header">
+        <div>
+          <h2>Subtask 分段核对</h2>
+          <p id="subtaskSummary" class="muted">先选择 object；如果 action 为 none，只需要标 N-1 个断点生成 N 段。</p>
+        </div>
+        <div id="subtaskWarning" class="subtask-warning"></div>
+      </div>
+      <div id="subtaskRows" class="subtask-rows"></div>
+    </section>
+
+    <section class="form-panel">
+      <label class="note-label">
+        备注
+        <input id="noteInput" type="text" placeholder="可空；例如 gpu 实际是 disk" />
+      </label>
+      <div class="canonical">
+        当前输出：<code id="canonicalText">-</code>
+      </div>
+      <button id="saveBtn" class="save-btn">Enter 保存并下一个</button>
+    </section>
+
+    <section class="help-panel">
+      <h2>快捷键</h2>
+      <p>
+        机箱：6 大机箱 / 7 小机箱（必选）。
+        物体：1 cpu / 2 disk / 3 gpu / 4 ram / 5 ram2 / 8 自定义。
+        动作：0 none / Q pick_up / W insert / E pick_up_and_insert / 9 other。
+        B bad video，C 主视角严重偏移，D 跳变，Enter 保存，←/→ 切换，Space 播放暂停，`,`/`.` 逐帧，`&lt;`/`&gt;` 十帧，`[`/`]` 降速/升速，S 在当前帧添加或取消断点。
+      </p>
+      <p class="muted">保存文件：<code>annotations.jsonl</code> 和 <code>annotations_latest.json</code>。</p>
+    </section>
+  </main>
+  <script src="app.js?v=20260701v13"></script>
+</body>
+</html>
