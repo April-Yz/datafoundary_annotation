@@ -89,7 +89,7 @@ ssh -o ExitOnForwardFailure=yes -N -L 8002:127.0.0.1:18080 cartin1-wenkai
 - package builder 会读取源 LeRobot parquet 的逐帧 `subtask` 列，预加载已有分段。
 - 如果源分段数量与当前 object 的标准模板数量一致，可以直接沿用，不强制人工重标。
 - 如果源分段缺失，或源分段数量与当前 object 模板不一致，页面会提示“源分段不匹配，需人工确认”，保存前必须人工设置/确认断点。
-- 标注员只需要标断点：N 段 subtask 需要 N-1 个断点，系统会自动推导每段 start/end；断点数量上限就是当前任务模板需要的 N-1。
+- 标注员只需要标断点：N 段 subtask 通常需要 N-1 个断点，系统会自动推导每段 start/end。当前例外是 GPU：标准 4 段需要 3 个断点，但允许多加 1 个断点生成 `S5 / gpu_subtask_5`。
 - `B/C/D` 质量标记显示在三视角视频正下方，C/D 用红色强调，避免漏看。
 
 播放器控制：

@@ -69,7 +69,7 @@ tar -xf /path/to/task_annotation_package.tar -C ~/annotation_packages/
 
 ### 可选：覆盖最新版网页代码补丁（安全，不覆盖标注结果）
 
-如果同时收到了 `annotation_tool_v14_gpu_extra_overlay_patch_*.tar.gz`，请在解压数据包后覆盖一次网页代码。
+如果同时收到了 `annotation_tool_v14_gpu_s5_overlay_patch_*.tar.gz`，请在解压数据包后覆盖一次网页代码。
 
 这一步只更新网页代码，不会覆盖已经保存的标注结果。为了防止误操作，建议覆盖前先备份一次结果 JSON：
 
@@ -83,7 +83,7 @@ cp -a annotations.jsonl "annotations.jsonl.bak_$(date +%Y%m%d_%H%M)" 2>/dev/null
 cp -a annotations_latest.json "annotations_latest.json.bak_$(date +%Y%m%d_%H%M)" 2>/dev/null || true
 
 # 只覆盖网页代码和说明文档
-tar -xzf /path/to/annotation_tool_v14_gpu_extra_overlay_patch_*.tar.gz -C "$PACKAGE_DIR"
+tar -xzf /path/to/annotation_tool_v14_gpu_s5_overlay_patch_*.tar.gz -C "$PACKAGE_DIR"
 ```
 
 这个补丁只覆盖网页代码、说明文档和 `annotation_server.py`，不会修改：
@@ -93,7 +93,7 @@ tar -xzf /path/to/annotation_tool_v14_gpu_extra_overlay_patch_*.tar.gz -C "$PACK
 - `annotations.jsonl`
 - `annotations_latest.json`
 
-覆盖后页面应该显示 `机箱类型 Chassis（必选，无默认）`，并且 GPU 页面应显示允许 `3–4` 个断点。
+覆盖后页面应该显示 `机箱类型 Chassis（必选，无默认）`，并且 GPU 页面应显示允许 `3–4` 个断点；如果用了第 4 个 GPU 断点，第 5 段会显示为 `S5 / gpu_subtask_5`。
 
 重要：不要把原始数据包 `.tar` / `.tar.gz` 重新解压到已经标注过的同一个目录里。原始数据包里通常带有空的 `annotations.jsonl` 和 `annotations_latest.json`，重新解压整包可能覆盖你已经保存的结果。如果必须重新解压，请解压到一个新目录，或者先备份这两个 JSON 文件。
 
@@ -243,7 +243,7 @@ curl http://127.0.0.1:18080/api/health
 - 不要删除 `annotations.jsonl`
 - 不要删除 `annotations_latest.json`
 - 不要移动 package 内部的 `videos/` 和 `previews/`
-- 如果需要更新网页代码，只用 `annotation_tool_v14_gpu_extra_overlay_patch_*.tar.gz` 覆盖；不要重新解压完整数据包到当前目录。
+- 如果需要更新网页代码，只用 `annotation_tool_v14_gpu_s5_overlay_patch_*.tar.gz` 覆盖；不要重新解压完整数据包到当前目录。
 
 ## 10. 最后需要交回什么
 
