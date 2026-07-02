@@ -127,13 +127,15 @@ function currentSourceSubtaskSegments() {
   return Array.isArray(sourceSegments) ? sourceSegments : [];
 }
 
-function sourceSubtaskMatchesExpected(expectedCount) {
-  return sourceSubtaskStatus === "ok" && sourceSubtaskSegmentCount === expectedCount;
+function sourceSubtaskMatchesExpected(expectedCount, maxExpectedCount = expectedCount) {
+  return sourceSubtaskStatus === "ok"
+    && sourceSubtaskSegmentCount >= expectedCount
+    && sourceSubtaskSegmentCount <= maxExpectedCount;
 }
 
-function subtaskNeedsManualReview(expectedCount) {
+function subtaskNeedsManualReview(expectedCount, maxExpectedCount = expectedCount) {
   if (selectedAction !== "none" || expectedCount <= 0) return false;
-  return !sourceSubtaskMatchesExpected(expectedCount);
+  return !sourceSubtaskMatchesExpected(expectedCount, maxExpectedCount);
 }
 
 function currentMaxFrame() {
@@ -895,8 +897,8 @@ function renderSubtasks() {
   const sourceText = sourceSubtaskSegmentCount != null
     ? `源 parquet 分段：${sourceSubtaskSegmentCount} 段（${sourceSubtaskStatus}）。`
     : `源 parquet 分段：未读取。`;
-  const sourceMatches = sourceSubtaskMatchesExpected(completion.baseExpected);
-  const needsManual = subtaskNeedsManualReview(completion.baseExpected);
+  const sourceMatches = sourceSubtaskMatchesExpected(completion.baseExpected, completion.expected);
+  const needsManual = subtaskNeedsManualReview(completion.baseExpected, completion.expected);
   const breakpointTextForSummary = completion.maxBreakpoints > completion.expectedBreakpoints
     ? `${completion.expectedBreakpoints}–${completion.maxBreakpoints}`
     : `${completion.expectedBreakpoints}`;
@@ -968,8 +970,8 @@ function buildRecord() {
     preloaded: Boolean(bp.preloaded)
   }));
   const templateKey = templateKeyForObject(object);
-  const sourceMatchesExpected = sourceSubtaskMatchesExpected(completion.baseExpected);
-  const needsManualReview = subtaskNeedsManualReview(completion.baseExpected);
+  const sourceMatchesExpected = sourceSubtaskMatchesExpected(completion.baseExpected, completion.expected);
+  const needsManualReview = subtaskNeedsManualReview(completion.baseExpected, completion.expected);
   return {
     item_id: item.item_id,
     demo_timestamp: item.demo_timestamp,
