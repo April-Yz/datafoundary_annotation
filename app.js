@@ -84,6 +84,40 @@ function expectedSubtasks(objectValue = resolvedObject()) {
   return key ? (config.subtask_schemas?.[key] || []) : [];
 }
 
+function optionalExtraBreakpointCount(objectValue = resolvedObject()) {
+  const raw = config?.optional_extra_breakpoints?.[objectValue];
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function minBreakpointCount(objectValue = resolvedObject()) {
+  return Math.max(0, expectedSubtasks(objectValue).length - 1);
+}
+
+function maxBreakpointCount(objectValue = resolvedObject()) {
+  return minBreakpointCount(objectValue) + optionalExtraBreakpointCount(objectValue);
+}
+
+function effectiveSubtasks(objectValue = resolvedObject()) {
+  const base = expectedSubtasks(objectValue).map((st) => ({...st, optional_extra: false}));
+  const extraAllowed = optionalExtraBreakpointCount(objectValue);
+  if (!extraAllowed || !base.length) return base;
+
+  const standardBreakpointCount = Math.max(0, base.length - 1);
+  const extraBreakpointsUsed = Math.max(0, normalizeBreakpoints(subtaskBreakpoints).length - standardBreakpointCount);
+  const extraSegments = Math.min(extraAllowed, extraBreakpointsUsed);
+  const key = templateKeyForObject(objectValue) || objectValue || "task";
+  for (let i = 0; i < extraSegments; i += 1) {
+    base.push({
+      id: `extra_${i + 1}`,
+      label: `${key}_optional_extra_segment_${i + 1}`,
+      prompt: `optional extra segment for ${objectValue}`,
+      optional_extra: true
+    });
+  }
+  return base;
+}
+
 function currentSourceSubtaskSegments() {
   const item = items[index] || {};
   if (Array.isArray(item.initial_subtask_segments) && item.initial_subtask_segments.length) {
@@ -176,7 +210,7 @@ function defaultBreakpointsForItem(item = items[index] || {}) {
 }
 
 function expectedBreakpointCount(objectValue = resolvedObject()) {
-  return Math.max(0, expectedSubtasks(objectValue).length - 1);
+  return minBreakpointCount(objectValue);
 }
 
 function sourceBoundaryCount() {
@@ -194,7 +228,7 @@ function sourceSubtaskInfoText() {
 }
 
 function ensureSubtaskSegments() {
-  const subtasks = expectedSubtasks();
+  const subtasks = effectiveSubtasks();
   const next = {};
   const breakpoints = normalizeBreakpoints(subtaskBreakpoints);
   subtaskBreakpoints = breakpoints;
@@ -212,7 +246,8 @@ function ensureSubtaskSegments() {
       start_frame: startFrame,
       end_frame: endFrame,
       source: breakpoints.some((bp) => bp.preloaded) ? "breakpoint_derived_from_source" : "breakpoint_derived",
-      preloaded: breakpoints.some((bp) => bp.preloaded)
+      preloaded: breakpoints.some((bp) => bp.preloaded),
+      optional_extra: Boolean(st.optional_extra)
     };
   }
   subtaskSegments = next;
@@ -552,8 +587,10 @@ function setBreakpointWarning(message = "") {
 }
 
 function toggleBreakpointAtFrame(frame) {
-  const expected = expectedBreakpointCount();
-  if (expected <= 0) {
+  const minExpected = minBreakpointCount();
+  const maxAllowed = maxBreakpointCount();
+  const extraAllowed = optionalExtraBreakpointCount();
+  if (maxAllowed <= 0) {
     $("saveStatus").textContent = "当前 object 没有标准分段模板，不能添加断点。";
     setBreakpointWarning("当前任务没有标准分段模板，不能添加断点。");
     return;
@@ -574,8 +611,9 @@ function toggleBreakpointAtFrame(frame) {
     normalized.splice(nearestIndex, 1);
     $("saveStatus").textContent = `已取消断点 frame ${targetFrame}`;
     setBreakpointWarning("");
-  } else if (normalized.length >= expected) {
-    const message = `断点已满：当前上限 ${expected} 个。请先 Reset，或把播放位置移到已有断点附近按 S 删除一帧。`;
+  } else if (normalized.length >= maxAllowed) {
+    const extraText = extraAllowed > 0 ? `，该任务允许额外 +${extraAllowed}` : "";
+    const message = `断点已满：当前上限 ${maxAllowed} 个（标准 ${minExpected}${extraText}）。请先 Reset，或把播放位置移到已有断点附近按 S 删除一帧。`;
     $("saveStatus").textContent = message;
     $("saveStatus").classList.add("error");
     setBreakpointWarning(message);
@@ -622,7 +660,10 @@ function renderSubtaskTimeline() {
   const sourceBps = sourceBreakpoints();
   const currentBps = normalizeBreakpoints(subtaskBreakpoints);
   const sourceText = sourceSubtaskInfoText();
-  const expectedBp = expectedBreakpointCount();
+  const minBp = minBreakpointCount();
+  const maxBp = maxBreakpointCount();
+  const extraBp = optionalExtraBreakpointCount();
+  const bpLimitText = maxBp > minBp ? `${minBp}–${maxBp}` : String(minBp);
   const bpSummary = currentBreakpointSummary();
   const sourceEnd = sourceSegments.reduce((mx, seg) => Math.max(mx, Number(seg.end_time) || 0), 0);
   const sourceGap = sourceSegments.length && duration > 0 ? duration - sourceEnd : 0;
@@ -634,7 +675,8 @@ function renderSubtaskTimeline() {
     ? ` ⚠️ 源分段只覆盖到 ${formatTime(sourceEnd)}，但视频/时间轴到 ${formatTime(duration)}；可能是测试包或 metadata 与视频不一致，请以视频为准重标/核对。`
     : "";
   info.classList.toggle("warn", Boolean(sourceMismatch));
-  info.textContent = `${sourceText}；${sourceHint}；红色=当前可保存断点 ${currentBps.length}/${expectedBp}${bpSummary ? `：${bpSummary}` : ""}。上限=${expectedBp}；按 S 或按钮添加/取消，Reset 清空当前断点。${mismatchHint}`;
+  const extraHint = extraBp > 0 ? `；该任务允许额外 +${extraBp} 个可选断点` : "";
+  info.textContent = `${sourceText}；${sourceHint}；红色=当前可保存断点 ${currentBps.length}/${bpLimitText}${bpSummary ? `：${bpSummary}` : ""}。上限=${maxBp}${extraHint}；按 S 或按钮添加/取消，Reset 清空当前断点。${mismatchHint}`;
 
   if (duration <= 0) {
     updateTimelinePlayhead();
@@ -794,23 +836,34 @@ function clearSegment(subtaskId) {
 }
 
 function subtaskCompletion() {
-  const subtasks = expectedSubtasks();
-  const expectedBreakpoints = Math.max(0, subtasks.length - 1);
+  const baseSubtasks = expectedSubtasks();
+  const optionalExtraBreakpoints = optionalExtraBreakpointCount();
+  const expectedBreakpoints = Math.max(0, baseSubtasks.length - 1);
+  const maxBreakpoints = expectedBreakpoints + optionalExtraBreakpoints;
   const breakpoints = normalizeBreakpoints(subtaskBreakpoints);
-  const complete = breakpoints.length === expectedBreakpoints ? subtasks.length : Math.min(subtasks.length, breakpoints.length + 1);
+  const effectiveCount = baseSubtasks.length + Math.min(optionalExtraBreakpoints, Math.max(0, breakpoints.length - expectedBreakpoints));
+  const breakpointComplete = baseSubtasks.length > 0
+    ? breakpoints.length >= expectedBreakpoints && breakpoints.length <= maxBreakpoints
+    : breakpoints.length === 0;
+  const complete = breakpointComplete
+    ? effectiveCount
+    : Math.min(effectiveCount, breakpoints.length + 1);
   return {
     complete,
-    expected: subtasks.length,
+    expected: effectiveCount,
+    baseExpected: baseSubtasks.length,
     breakpoints: breakpoints.length,
     expectedBreakpoints,
-    breakpointComplete: breakpoints.length === expectedBreakpoints
+    maxBreakpoints,
+    optionalExtraBreakpoints,
+    breakpointComplete
   };
 }
 
 function renderSubtasks() {
   const object = resolvedObject();
   const templateKey = templateKeyForObject(object);
-  const subtasks = expectedSubtasks(object);
+  const baseSubtasks = expectedSubtasks(object);
   const rows = $("subtaskRows");
   if (!rows) return;
   rows.innerHTML = "";
@@ -826,7 +879,7 @@ function renderSubtasks() {
     return;
   }
 
-  if (!templateKey || !subtasks.length) {
+  if (!templateKey || !baseSubtasks.length) {
     summary.textContent = `${object} 没有标准 subtask 模板；可保存任务名，但建议备注说明。${sourceSubtaskInfoText()}。`;
     warning.textContent = "无标准模板";
     warning.classList.add("warn");
@@ -836,17 +889,24 @@ function renderSubtasks() {
 
   ensureSubtaskSegments();
   const completion = subtaskCompletion();
+  const subtasks = effectiveSubtasks(object);
   const expected = completion.expected;
   const required = selectedAction === "none";
   const sourceText = sourceSubtaskSegmentCount != null
     ? `源 parquet 分段：${sourceSubtaskSegmentCount} 段（${sourceSubtaskStatus}）。`
     : `源 parquet 分段：未读取。`;
-  const sourceMatches = sourceSubtaskMatchesExpected(expected);
-  const needsManual = subtaskNeedsManualReview(expected);
-  summary.textContent = `${object} 使用 ${templateKey} 模板：共 ${expected} 段，需要 ${completion.expectedBreakpoints} 个断点。当前断点 ${completion.breakpoints}/${completion.expectedBreakpoints}。${sourceText}${required ? " 当前 action=none。" : " 当前 action 非 none，分段不强制但建议核对。"}`;
+  const sourceMatches = sourceSubtaskMatchesExpected(completion.baseExpected);
+  const needsManual = subtaskNeedsManualReview(completion.baseExpected);
+  const breakpointTextForSummary = completion.maxBreakpoints > completion.expectedBreakpoints
+    ? `${completion.expectedBreakpoints}–${completion.maxBreakpoints}`
+    : `${completion.expectedBreakpoints}`;
+  const extraText = completion.optionalExtraBreakpoints > 0
+    ? `该任务可额外 +${completion.optionalExtraBreakpoints} 个可选断点；`
+    : "";
+  summary.textContent = `${object} 使用 ${templateKey} 模板：标准 ${completion.baseExpected} 段，需要 ${breakpointTextForSummary} 个断点。当前断点 ${completion.breakpoints}/${breakpointTextForSummary}，当前生成 ${expected} 段。${extraText}${sourceText}${required ? " 当前 action=none。" : " 当前 action 非 none，分段不强制但建议核对。"}`;
   if (required && !completion.breakpointComplete) {
     const delta = completion.expectedBreakpoints - completion.breakpoints;
-    warning.textContent = delta > 0 ? `需补 ${delta} 个断点` : `多 ${Math.abs(delta)} 个断点`;
+    warning.textContent = delta > 0 ? `需补 ${delta} 个断点` : `多 ${completion.breakpoints - completion.maxBreakpoints} 个断点`;
     warning.classList.add("warn");
   } else if (needsManual && !subtaskEdited) {
     warning.textContent = `源分段不匹配，需人工确认`;
@@ -875,7 +935,7 @@ function renderSubtasks() {
     row.className = "subtask-row";
     row.innerHTML = `
       <div class="subtask-title">
-        <strong>${st.id}. ${st.label}</strong>
+        <strong>${st.id}. ${st.label}${st.optional_extra ? "（可选额外段）" : ""}</strong>
         <span>${st.prompt}</span>
       </div>
       <div class="subtask-times">
@@ -908,8 +968,8 @@ function buildRecord() {
     preloaded: Boolean(bp.preloaded)
   }));
   const templateKey = templateKeyForObject(object);
-  const sourceMatchesExpected = sourceSubtaskMatchesExpected(completion.expected);
-  const needsManualReview = subtaskNeedsManualReview(completion.expected);
+  const sourceMatchesExpected = sourceSubtaskMatchesExpected(completion.baseExpected);
+  const needsManualReview = subtaskNeedsManualReview(completion.baseExpected);
   return {
     item_id: item.item_id,
     demo_timestamp: item.demo_timestamp,
@@ -927,7 +987,10 @@ function buildRecord() {
     quality_flags: qualityFlags,
     subtask_template: templateKey,
     subtask_expected_count: completion.expected,
+    subtask_base_expected_count: completion.baseExpected,
     subtask_expected_breakpoint_count: completion.expectedBreakpoints,
+    subtask_max_breakpoint_count: completion.maxBreakpoints,
+    subtask_optional_extra_breakpoints: completion.optionalExtraBreakpoints,
     subtask_breakpoint_count: completion.breakpoints,
     subtask_complete_count: completion.complete,
     subtask_complete: completion.expected > 0 ? completion.breakpointComplete : null,
@@ -954,10 +1017,16 @@ function validateRecord(record) {
   }
   if (!record.object) return "正常视频至少要选一个物体；如果看不清请勾 bad video。";
   if (record.action_prefix === "none" && record.subtask_expected_count > 0 && !record.subtask_complete) {
-    return `action=none 表示完整任务，需要 ${record.subtask_expected_breakpoint_count} 个断点生成 ${record.subtask_expected_count} 段；当前 ${record.subtask_breakpoint_count}/${record.subtask_expected_breakpoint_count}。`;
+    const minBp = record.subtask_expected_breakpoint_count;
+    const maxBp = record.subtask_max_breakpoint_count ?? minBp;
+    const bpText = maxBp > minBp ? `${minBp}–${maxBp}` : `${minBp}`;
+    const extraText = record.subtask_optional_extra_breakpoints > 0
+      ? `（允许 ${record.subtask_optional_extra_breakpoints} 个可选额外断点/段）`
+      : "";
+    return `action=none 表示完整任务，需要 ${bpText} 个断点生成标准 ${record.subtask_base_expected_count ?? record.subtask_expected_count} 段${extraText}；当前 ${record.subtask_breakpoint_count}/${bpText}。`;
   }
   if (record.action_prefix === "none" && record.subtask_expected_count > 0 && record.subtask_needs_manual_review && !record.subtask_manual_edited) {
-    return `源 subtask 与当前任务模板不一致或缺失：源 ${record.subtask_source_segment_count ?? 0} 段，当前需要 ${record.subtask_expected_count} 段。请人工确认/重标分段后再保存。`;
+    return `源 subtask 与当前任务模板不一致或缺失：源 ${record.subtask_source_segment_count ?? 0} 段，当前标准需要 ${record.subtask_base_expected_count ?? record.subtask_expected_count} 段。请人工确认/重标分段后再保存。`;
   }
   return "";
 }

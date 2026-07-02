@@ -1,6 +1,6 @@
 {
-  "version": "2026-07-01-v13",
-  "description": "Task relabel UI config. Normal workflow: choose chassis type and object, press Enter. Action prefix is optional and defaults to none.",
+  "version": "2026-07-02-v14",
+  "description": "Task relabel UI config. Normal workflow: choose chassis type and object, press Enter. Action prefix is optional and defaults to none. GPU allows one optional extra breakpoint for ambiguous cases.",
   "chassis_types": [
     {"key": "6", "value": "large_case", "label": "6 大机箱"},
     {"key": "7", "value": "small_case", "label": "7 小机箱"}
@@ -27,6 +27,9 @@
     "gpu": "gpu",
     "ram": "ram",
     "ram2": "ram"
+  },
+  "optional_extra_breakpoints": {
+    "gpu": 1
   },
   "subtask_schemas": {
     "cpu": [
