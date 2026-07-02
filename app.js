@@ -107,10 +107,12 @@ function effectiveSubtasks(objectValue = resolvedObject()) {
   const extraBreakpointsUsed = Math.max(0, normalizeBreakpoints(subtaskBreakpoints).length - standardBreakpointCount);
   const extraSegments = Math.min(extraAllowed, extraBreakpointsUsed);
   const key = templateKeyForObject(objectValue) || objectValue || "task";
+  const baseCount = base.length;
   for (let i = 0; i < extraSegments; i += 1) {
+    const extraIndex = baseCount + i + 1;
     base.push({
-      id: `extra_${i + 1}`,
-      label: `${key}_optional_extra_segment_${i + 1}`,
+      id: String(extraIndex),
+      label: `${key}_subtask_${extraIndex}`,
       prompt: `optional extra segment for ${objectValue}`,
       optional_extra: true
     });
