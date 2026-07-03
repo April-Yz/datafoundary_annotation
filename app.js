@@ -127,7 +127,7 @@ function expectedSubtasks(objectValue = resolvedObject()) {
 }
 
 function optionalExtraBreakpointCount(objectValue = resolvedObject()) {
-  return 0;
+  return selectedTaskMode === "overall" && objectValue === "gpu" ? 1 : 0;
 }
 
 function minBreakpointCount(objectValue = resolvedObject()) {
@@ -139,7 +139,24 @@ function maxBreakpointCount(objectValue = resolvedObject()) {
 }
 
 function effectiveSubtasks(objectValue = resolvedObject()) {
-  return selectedSubtasks(objectValue).map((st) => ({...st, optional_extra: false}));
+  const base = selectedSubtasks(objectValue).map((st) => ({...st, optional_extra: false}));
+  const extraAllowed = optionalExtraBreakpointCount(objectValue);
+  if (!extraAllowed || !base.length) return base;
+
+  const standardBreakpointCount = Math.max(0, base.length - 1);
+  const extraBreakpointsUsed = Math.max(0, normalizeBreakpoints(subtaskBreakpoints).length - standardBreakpointCount);
+  const extraSegments = Math.min(extraAllowed, extraBreakpointsUsed);
+  for (let i = 0; i < extraSegments; i += 1) {
+    const extraIndex = base.length + i + 1;
+    base.push({
+      id: String(extraIndex),
+      subtask_name: `${objectValue}_extra_segment${i + 1}`,
+      label: `${objectValue}_extra_segment${i + 1}`,
+      prompt: `optional extra segment for ${objectValue}`,
+      optional_extra: true
+    });
+  }
+  return base;
 }
 
 function currentSourceSubtaskSegments() {
@@ -873,13 +890,13 @@ function clearSegment(subtaskId) {
 
 function subtaskCompletion() {
   const baseSubtasks = selectedSubtasks();
-  const optionalExtraBreakpoints = 0;
+  const optionalExtraBreakpoints = optionalExtraBreakpointCount();
   const expectedBreakpoints = Math.max(0, baseSubtasks.length - 1);
   const maxBreakpoints = expectedBreakpoints + optionalExtraBreakpoints;
   const breakpoints = normalizeBreakpoints(subtaskBreakpoints);
-  const effectiveCount = baseSubtasks.length;
+  const effectiveCount = baseSubtasks.length + Math.min(optionalExtraBreakpoints, Math.max(0, breakpoints.length - expectedBreakpoints));
   const breakpointComplete = baseSubtasks.length > 0
-    ? breakpoints.length === expectedBreakpoints
+    ? breakpoints.length >= expectedBreakpoints && breakpoints.length <= maxBreakpoints
     : breakpoints.length === 0;
   const complete = breakpointComplete
     ? effectiveCount
@@ -925,7 +942,7 @@ function renderSubtasks() {
 
   ensureSubtaskSegments();
   const completion = subtaskCompletion();
-  const subtasks = expectedSubtasks(object);
+  const subtasks = selectedTaskMode === "overall" ? effectiveSubtasks(object) : expectedSubtasks(object);
   const selected = selectedSubtasks(object);
   const expected = completion.expected;
   const required = true;
@@ -934,12 +951,18 @@ function renderSubtasks() {
     : `源 parquet 分段：未读取。`;
   const sourceMatches = selectedTaskMode === "overall" && sourceSubtaskMatchesExpected(completion.baseExpected, completion.expected);
   const needsManual = selectedTaskMode === "overall" && subtaskNeedsManualReview(completion.baseExpected, completion.expected);
-  const breakpointTextForSummary = `${completion.expectedBreakpoints}`;
+  const breakpointTextForSummary = completion.maxBreakpoints > completion.expectedBreakpoints
+    ? `${completion.expectedBreakpoints}–${completion.maxBreakpoints}`
+    : `${completion.expectedBreakpoints}`;
   const selectedNames = selected.map((st) => st.subtask_name || st.label).join(" + ") || "未选择";
-  summary.textContent = `${object} 使用 ${templateKey} 模板。当前模式：${selectedTaskMode === "overall" ? "整个任务" : "任务片段"}；选中 ${selected.length} 段：${selectedNames}；必须 ${breakpointTextForSummary} 个断点。当前断点 ${completion.breakpoints}/${breakpointTextForSummary}。${sourceText}`;
+  const extraText = completion.optionalExtraBreakpoints > 0
+    ? `；允许额外 +${completion.optionalExtraBreakpoints} 个可选断点/段`
+    : "";
+  summary.textContent = `${object} 使用 ${templateKey} 模板。当前模式：${selectedTaskMode === "overall" ? "整个任务" : "任务片段"}；选中 ${selected.length} 段：${selectedNames}${extraText}；必须 ${breakpointTextForSummary} 个断点。当前断点 ${completion.breakpoints}/${breakpointTextForSummary}。${sourceText}`;
   if (required && !completion.breakpointComplete) {
-    const delta = completion.expectedBreakpoints - completion.breakpoints;
-    warning.textContent = delta > 0 ? `需补 ${delta} 个断点` : `多 ${completion.breakpoints - completion.expectedBreakpoints} 个断点`;
+    warning.textContent = completion.breakpoints < completion.expectedBreakpoints
+      ? `需补 ${completion.expectedBreakpoints - completion.breakpoints} 个断点`
+      : `多 ${completion.breakpoints - completion.maxBreakpoints} 个断点`;
     warning.classList.add("warn");
   } else if (needsManual && !subtaskEdited) {
     warning.textContent = `源分段不匹配，需人工确认`;
@@ -973,7 +996,7 @@ function renderSubtasks() {
     row.innerHTML = `
       ${selector}
       <div class="subtask-title">
-        <strong>${st.id}. ${st.subtask_name || st.label}</strong>
+        <strong>${st.id}. ${st.subtask_name || st.label}${st.optional_extra ? "（可选额外段）" : ""}</strong>
         <span>${st.prompt}</span>
       </div>
       <div class="subtask-times">
@@ -1018,7 +1041,10 @@ function validateRecord(record) {
     return "任务片段模式下必须至少选择一个子任务。";
   }
   if (!completion.breakpointComplete) {
-    return `${selectedTaskMode === "overall" ? "整个任务" : "任务片段"} ${record.task_name} 需要 ${completion.expectedBreakpoints} 个断点；当前 ${completion.breakpoints}/${completion.expectedBreakpoints}。`;
+    const bpText = completion.maxBreakpoints > completion.expectedBreakpoints
+      ? `${completion.expectedBreakpoints}–${completion.maxBreakpoints}`
+      : `${completion.expectedBreakpoints}`;
+    return `${selectedTaskMode === "overall" ? "整个任务" : "任务片段"} ${record.task_name} 需要 ${bpText} 个断点；当前 ${completion.breakpoints}/${bpText}。`;
   }
   if (selectedTaskMode === "overall" && subtaskNeedsManualReview(completion.baseExpected, completion.expected) && !subtaskEdited) {
     return `源 subtask 与当前任务模板不一致或缺失：源 ${sourceSubtaskSegmentCount ?? 0} 段，当前标准需要 ${completion.expected} 段。请人工确认/重标分段后再保存。`;
