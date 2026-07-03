@@ -1,24 +1,20 @@
 {
-  "version": "2026-07-02-v14",
-  "description": "Task relabel UI config. Normal workflow: choose chassis type and object, press Enter. Action prefix is optional and defaults to none. GPU allows one optional extra breakpoint for ambiguous cases.",
+  "version": "2026-07-03-v15-fragment-subtasks",
+  "description": "Task relabel UI config. Normal workflow: choose chassis type, choose object, choose overall task or task fragment. Fragment labels are composed from selected subtask names.",
   "chassis_types": [
     {"key": "6", "value": "large_case", "label": "6 大机箱"},
     {"key": "7", "value": "small_case", "label": "7 小机箱"}
   ],
-  "action_prefixes": [
-    {"key": "0", "value": "none", "label": "0 none / full-task label", "default": true},
-    {"key": "1", "value": "pick_up", "label": "1 pick_up"},
-    {"key": "2", "value": "insert", "label": "2 insert"},
-    {"key": "3", "value": "pick_up_and_insert", "label": "3 pick_up_and_insert"},
-    {"key": "9", "value": "other_action", "label": "9 other_action"}
+  "task_modes": [
+    {"key": "0", "value": "overall", "label": "0 整个任务 / overall", "default": true},
+    {"key": "9", "value": "fragment", "label": "9 任务片段 / fragment"}
   ],
   "objects": [
     {"key": "1", "value": "cpu", "label": "1 cpu"},
     {"key": "2", "value": "disk", "label": "2 disk"},
     {"key": "3", "value": "gpu", "label": "3 gpu"},
     {"key": "4", "value": "ram", "label": "4 ram"},
-    {"key": "5", "value": "ram2", "label": "5 ram2"},
-    {"key": "8", "value": "custom_object", "label": "8 自定义 object"}
+    {"key": "5", "value": "ram2", "label": "5 ram2"}
   ],
   "subtask_schema_source": "data_foundary/vqa_hl_generation_pipeline/config.yaml",
   "subtask_template_map": {
@@ -26,50 +22,52 @@
     "disk": "disk",
     "gpu": "gpu",
     "ram": "ram",
-    "ram2": "ram"
-  },
-  "optional_extra_breakpoints": {
-    "gpu": 1
+    "ram2": "ram2"
   },
   "subtask_schemas": {
     "cpu": [
-      {"id": "1", "label": "cpu_subtask_1", "prompt": "move the gripper to the CPU"},
-      {"id": "2", "label": "cpu_subtask_2", "prompt": "grasp the cpu and move it towards the insertion slot"},
-      {"id": "3", "label": "cpu_subtask_3", "prompt": "place the cpu into insertion slot"},
-      {"id": "4", "label": "cpu_subtask_4", "prompt": "close the cover"},
-      {"id": "5", "label": "cpu_subtask_5", "prompt": "install the locking lever"},
-      {"id": "6", "label": "cpu_subtask_6", "prompt": "install the second locking lever"}
+      {"id": "1", "subtask_name": "cpu_reach", "label": "cpu_reach", "prompt": "reach for the cpu"},
+      {"id": "2", "subtask_name": "cpu_pick", "label": "cpu_pick", "prompt": "pick up the cpu and move it towards the insertion slot"},
+      {"id": "3", "subtask_name": "cpu_insert", "label": "cpu_insert", "prompt": "place the cpu into insertion slot"},
+      {"id": "4", "subtask_name": "cpu_cover", "label": "cpu_cover", "prompt": "close the cpu cover"},
+      {"id": "5", "subtask_name": "cpu_lever1", "label": "cpu_lever1", "prompt": "install the first cpu locking lever"},
+      {"id": "6", "subtask_name": "cpu_lever2", "label": "cpu_lever2", "prompt": "install the second cpu locking lever"}
     ],
     "disk": [
-      {"id": "1", "label": "disk_subtask_1", "prompt": "reach for the disk"},
-      {"id": "2", "label": "disk_subtask_2", "prompt": "grasp the disk and insert it into the insertion slot"},
-      {"id": "3", "label": "disk_subtask_3", "prompt": "insert the first wire"},
-      {"id": "4", "label": "disk_subtask_4", "prompt": "insert the disk into the slot"}
+      {"id": "1", "subtask_name": "disk_reach", "label": "disk_reach", "prompt": "reach for the disk"},
+      {"id": "2", "subtask_name": "disk_pick", "label": "disk_pick", "prompt": "pick up the disk"},
+      {"id": "3", "subtask_name": "disk_insert", "label": "disk_insert", "prompt": "insert the disk into the insertion slot"},
+      {"id": "4", "subtask_name": "disk_wire1", "label": "disk_wire1", "prompt": "insert the first disk wire"},
+      {"id": "5", "subtask_name": "disk_wire2", "label": "disk_wire2", "prompt": "insert the second disk wire"}
     ],
     "gpu": [
-      {"id": "1", "label": "gpu_subtask_1", "prompt": "reach for the GPU"},
-      {"id": "2", "label": "gpu_subtask_2", "prompt": "grasp the gpu and move the gpu toward the slot"},
-      {"id": "3", "label": "gpu_subtask_3", "prompt": "insert the gpu into the slot"},
-      {"id": "4", "label": "gpu_subtask_4", "prompt": "press down on the gpu until it lock into place"}
+      {"id": "1", "subtask_name": "gpu_reach", "label": "gpu_reach", "prompt": "reach for the gpu"},
+      {"id": "2", "subtask_name": "gpu_pick", "label": "gpu_pick", "prompt": "pick up the gpu and move the gpu toward the slot"},
+      {"id": "3", "subtask_name": "gpu_insert", "label": "gpu_insert", "prompt": "insert the gpu into the slot"},
+      {"id": "4", "subtask_name": "gpu_press", "label": "gpu_press", "prompt": "press down on the gpu until it lock into place"}
     ],
     "ram": [
-      {"id": "1", "label": "ram_subtask_1", "prompt": "reach for the RAM"},
-      {"id": "2", "label": "ram_subtask_2", "prompt": "grasp the ram and move it above insertion slot"},
-      {"id": "3", "label": "ram_subtask_3", "prompt": "insert the RAM"},
-      {"id": "4", "label": "ram_subtask_4", "prompt": "press down the ram on one side"},
-      {"id": "5", "label": "ram_subtask_5", "prompt": "press down the ram on the other side"}
+      {"id": "1", "subtask_name": "ram_reach", "label": "ram_reach", "prompt": "reach for the ram"},
+      {"id": "2", "subtask_name": "ram_pick", "label": "ram_pick", "prompt": "pick up the ram and move it above insertion slot"},
+      {"id": "3", "subtask_name": "ram_insert", "label": "ram_insert", "prompt": "insert the ram into the slot"},
+      {"id": "4", "subtask_name": "ram_press1", "label": "ram_press1", "prompt": "press down the ram on one side until it locks into place"},
+      {"id": "5", "subtask_name": "ram_press2", "label": "ram_press2", "prompt": "press down the ram on the other side until it locks into place"}
+    ],
+    "ram2": [
+      {"id": "1", "subtask_name": "ram2_reach", "label": "ram2_reach", "prompt": "reach for the second ram"},
+      {"id": "2", "subtask_name": "ram2_pick", "label": "ram2_pick", "prompt": "pick up the second ram and move it above second insertion slot"},
+      {"id": "3", "subtask_name": "ram2_insert", "label": "ram2_insert", "prompt": "insert the second ram into the second slot"},
+      {"id": "4", "subtask_name": "ram2_press1", "label": "ram2_press1", "prompt": "press down the second ram on one side until it locks into place"},
+      {"id": "5", "subtask_name": "ram2_press2", "label": "ram2_press2", "prompt": "press down the second ram on the other side until it locks into place"}
     ]
   },
-  "canonical_rule": "If action_prefix is none, canonical_label = object. Otherwise canonical_label = action_prefix + '_' + object.",
+  "canonical_rule": "If task_mode is overall, task_name = object. If task_mode is fragment, task_name is the selected subtask_name combination, e.g. cpu_insert_cover.",
   "hotkeys": {
     "chassis_large_case": "6",
     "chassis_small_case": "7",
-    "object_digits": "1-5,8",
-    "action_none": "0",
-    "action_pick_up": "q",
-    "action_insert": "w",
-    "action_pick_up_and_insert": "e",
-    "action_other": "9",
+    "object_digits": "1-5",
+    "task_mode_overall": "0",
+    "task_mode_fragment": "9",
     "bad_video": "b",
     "main_view_severe_offset": "c",
     "has_jump": "d",

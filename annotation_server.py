@@ -160,9 +160,6 @@ class AnnotationHandler(SimpleHTTPRequestHandler):
             self._write_json({"ok": False, "error": "missing demo_timestamp"}, HTTPStatus.BAD_REQUEST)
             return
 
-        record.setdefault("annotator", self.annotator)
-        record["server_received_at"] = utc_now_iso()
-
         jsonl_path = self.package_dir / "annotations.jsonl"
         with jsonl_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")

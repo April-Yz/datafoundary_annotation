@@ -6,7 +6,8 @@ let annotations = {};
 let index = 0;
 let selectedChassis = "";
 let selectedObject = "";
-let selectedAction = "none";
+let selectedTaskMode = "overall";
+let selectedSubtaskIds = [];
 let customObjectText = "";
 let subtaskSegments = {};
 let subtaskThumbs = {};
@@ -51,28 +52,69 @@ function normalizeCustomObject(text) {
 }
 
 function resolvedObject() {
-  if (selectedObject === "custom_object") {
-    return normalizeCustomObject(customObjectText || $("customObjectInput").value);
-  }
   return selectedObject || "";
 }
 
-function canonicalLabel() {
+function selectedSubtasks(objectValue = resolvedObject()) {
+  const subtasks = expectedSubtasks(objectValue);
+  if (selectedTaskMode !== "fragment") return subtasks;
+  const selected = new Set(selectedSubtaskIds);
+  return subtasks.filter((st) => selected.has(String(st.id)));
+}
+
+function fragmentTaskName(subtasks, objectValue = resolvedObject()) {
+  const names = subtasks.map((st) => st.subtask_name || st.label).filter(Boolean);
+  if (!names.length) return "";
+  const prefix = `${objectValue}_`;
+  if (names.every((name) => name.startsWith(prefix))) {
+    return `${objectValue}_${names.map((name) => name.slice(prefix.length)).join("_")}`;
+  }
+  return names.join("_");
+}
+
+function parseTaskName(name) {
+  const task = String(name || "").trim();
+  if (!task) return {object: "", mode: "overall", subtaskIds: []};
+  if ((config.objects || []).some((obj) => obj.value === task)) {
+    return {object: task, mode: "overall", subtaskIds: []};
+  }
+  for (const obj of config.objects || []) {
+    const objectValue = obj.value;
+    const subtasks = expectedSubtasks(objectValue);
+    for (let start = 0; start < subtasks.length; start += 1) {
+      for (let end = start; end < subtasks.length; end += 1) {
+        const group = subtasks.slice(start, end + 1);
+        if (fragmentTaskName(group, objectValue) === task) {
+          return {object: objectValue, mode: "fragment", subtaskIds: group.map((st) => String(st.id))};
+        }
+      }
+    }
+  }
+  return {object: "", mode: "overall", subtaskIds: []};
+}
+
+function taskName() {
   const bad = $("badVideo").checked;
   const object = resolvedObject();
-  if (bad && !object) return "bad_video";
+  if (bad && !object) return "";
   if (!object) return "-";
-  if (!selectedAction || selectedAction === "none") return object;
-  return `${selectedAction}_${object}`;
+  if (selectedTaskMode === "fragment") return fragmentTaskName(selectedSubtasks(object), object) || "-";
+  return object;
 }
 
 function refreshCanonical() {
-  $("canonicalText").textContent = canonicalLabel();
+  $("canonicalText").textContent = taskName();
 }
 
 function chassisLabel(value = selectedChassis) {
   const found = (config?.chassis_types || []).find((ch) => ch.value === value);
   return found ? found.label.replace(/^\S+\s+/, "") : "";
+}
+
+function compactChassisLabel(value = selectedChassis) {
+  if (value === "large_case") return "large";
+  if (value === "small_case") return "small";
+  return "";
 }
 
 function templateKeyForObject(objectValue = resolvedObject()) {
@@ -85,13 +127,11 @@ function expectedSubtasks(objectValue = resolvedObject()) {
 }
 
 function optionalExtraBreakpointCount(objectValue = resolvedObject()) {
-  const raw = config?.optional_extra_breakpoints?.[objectValue];
-  const value = Number(raw);
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  return 0;
 }
 
 function minBreakpointCount(objectValue = resolvedObject()) {
-  return Math.max(0, expectedSubtasks(objectValue).length - 1);
+  return Math.max(0, selectedSubtasks(objectValue).length - 1);
 }
 
 function maxBreakpointCount(objectValue = resolvedObject()) {
@@ -99,25 +139,7 @@ function maxBreakpointCount(objectValue = resolvedObject()) {
 }
 
 function effectiveSubtasks(objectValue = resolvedObject()) {
-  const base = expectedSubtasks(objectValue).map((st) => ({...st, optional_extra: false}));
-  const extraAllowed = optionalExtraBreakpointCount(objectValue);
-  if (!extraAllowed || !base.length) return base;
-
-  const standardBreakpointCount = Math.max(0, base.length - 1);
-  const extraBreakpointsUsed = Math.max(0, normalizeBreakpoints(subtaskBreakpoints).length - standardBreakpointCount);
-  const extraSegments = Math.min(extraAllowed, extraBreakpointsUsed);
-  const key = templateKeyForObject(objectValue) || objectValue || "task";
-  const baseCount = base.length;
-  for (let i = 0; i < extraSegments; i += 1) {
-    const extraIndex = baseCount + i + 1;
-    base.push({
-      id: String(extraIndex),
-      label: `${key}_subtask_${extraIndex}`,
-      prompt: `optional extra segment for ${objectValue}`,
-      optional_extra: true
-    });
-  }
-  return base;
+  return selectedSubtasks(objectValue).map((st) => ({...st, optional_extra: false}));
 }
 
 function currentSourceSubtaskSegments() {
@@ -136,7 +158,7 @@ function sourceSubtaskMatchesExpected(expectedCount, maxExpectedCount = expected
 }
 
 function subtaskNeedsManualReview(expectedCount, maxExpectedCount = expectedCount) {
-  if (selectedAction !== "none" || expectedCount <= 0) return false;
+  if (selectedTaskMode !== "overall" || expectedCount <= 0) return false;
   return !sourceSubtaskMatchesExpected(expectedCount, maxExpectedCount);
 }
 
@@ -258,15 +280,12 @@ function ensureSubtaskSegments() {
 }
 
 function setObject(value) {
+  const changed = selectedObject !== value;
   selectedObject = value;
+  if (changed) selectedSubtaskIds = [];
   document.querySelectorAll("[data-object]").forEach((btn) => {
     btn.classList.toggle("selected", btn.dataset.object === value);
   });
-  const customBox = $("customObjectBox");
-  customBox.classList.toggle("hidden", value !== "custom_object");
-  if (value === "custom_object") {
-    $("customObjectInput").focus();
-  }
   ensureSubtaskSegments();
   renderSubtasks();
   refreshCanonical();
@@ -279,11 +298,25 @@ function setChassis(value) {
   });
 }
 
-function setAction(value) {
-  selectedAction = value || "none";
-  document.querySelectorAll("[data-action]").forEach((btn) => {
-    btn.classList.toggle("selected", btn.dataset.action === selectedAction);
+function setTaskMode(value) {
+  selectedTaskMode = value || "overall";
+  if (selectedTaskMode !== "fragment") selectedSubtaskIds = [];
+  document.querySelectorAll("[data-task-mode]").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.taskMode === selectedTaskMode);
   });
+  ensureSubtaskSegments();
+  renderSubtasks();
+  refreshCanonical();
+}
+
+function toggleSelectedSubtask(subtaskId) {
+  const id = String(subtaskId);
+  const current = new Set(selectedSubtaskIds.map(String));
+  if (current.has(id)) current.delete(id);
+  else current.add(id);
+  const order = expectedSubtasks().map((st) => String(st.id));
+  selectedSubtaskIds = order.filter((sid) => current.has(sid));
+  ensureSubtaskSegments();
   renderSubtasks();
   refreshCanonical();
 }
@@ -313,12 +346,12 @@ function renderConfig() {
 
   const actionBox = $("actionButtons");
   actionBox.innerHTML = "";
-  for (const act of config.action_prefixes) {
+  for (const act of config.task_modes || []) {
     const btn = document.createElement("button");
     btn.textContent = act.label;
-    btn.dataset.action = act.value;
+    btn.dataset.taskMode = act.value;
     btn.className = "choice-btn";
-    btn.onclick = () => setAction(act.value);
+    btn.onclick = () => setTaskMode(act.value);
     actionBox.appendChild(btn);
   }
 }
@@ -397,7 +430,8 @@ function loadExistingForItem(item) {
   const saved = annotations[item.demo_timestamp];
   selectedChassis = "";
   selectedObject = "";
-  selectedAction = "none";
+  selectedTaskMode = "overall";
+  selectedSubtaskIds = [];
   customObjectText = "";
   subtaskSegments = {};
   subtaskThumbs = {};
@@ -410,28 +444,22 @@ function loadExistingForItem(item) {
   $("badVideo").checked = false;
   $("mainViewSevereOffset").checked = false;
   $("hasJump").checked = false;
-  $("customObjectInput").value = "";
   $("noteInput").value = "";
 
   if (saved) {
-    selectedChassis = saved.chassis_type || saved.chassis || "";
-    selectedObject = saved.object_code || saved.object || "";
+    selectedChassis = saved.chassis_type || saved.chassis || (saved.chasis_label === "large" ? "large_case" : saved.chasis_label === "small" ? "small_case" : "");
+    const parsedTask = parseTaskName(saved.task_name || saved.canonical_label || "");
+    selectedObject = parsedTask.object || saved.object_code || saved.object || "";
     if (selectedObject === "ram1") selectedObject = "ram";
-    if (selectedObject && !config.objects.some((o) => o.value === selectedObject)) {
-      customObjectText = saved.object || selectedObject;
-      selectedObject = "custom_object";
-    }
-    if (selectedObject === "custom_object") {
-      customObjectText = saved.custom_object_text || saved.object || "";
-      $("customObjectInput").value = customObjectText;
-    }
-    selectedAction = saved.action_prefix || "none";
-    $("badVideo").checked = Boolean(saved.bad_video);
-    $("mainViewSevereOffset").checked = Boolean(saved.main_view_severe_offset);
-    $("hasJump").checked = Boolean(saved.has_jump);
+    if (!config.objects.some((o) => o.value === selectedObject)) selectedObject = "";
+    selectedTaskMode = parsedTask.mode || (saved.action_prefix && saved.action_prefix !== "none" ? "fragment" : "overall");
+    selectedSubtaskIds = parsedTask.subtaskIds || [];
+    $("badVideo").checked = Boolean(saved.bad_demo ?? saved.bad_video);
+    $("mainViewSevereOffset").checked = Boolean(saved.camera_shift ?? saved.main_view_severe_offset);
+    $("hasJump").checked = Boolean(saved["是否跳变"] ?? saved.has_jump);
     $("noteInput").value = saved.note || "";
     subtaskEdited = true;
-    $("saveStatus").textContent = `已标注：${saved.canonical_label || "bad_video"}`;
+    $("saveStatus").textContent = `已标注：${saved.task_name || saved.canonical_label || "bad_demo"}`;
   } else {
     $("saveStatus").textContent = "未保存";
   }
@@ -453,7 +481,7 @@ function renderItem() {
   renderVideos(item);
   setChassis(selectedChassis);
   setObject(selectedObject);
-  setAction(selectedAction || "none");
+  setTaskMode(selectedTaskMode || "overall");
   ensureSubtaskSegments();
   renderSubtasks();
   refreshCanonical();
@@ -659,14 +687,15 @@ function renderSubtaskTimeline() {
   if (playhead) timeline.appendChild(playhead);
 
   const duration = timelineDuration();
+  const hasObject = Boolean(resolvedObject());
   const sourceSegments = normalizeTimelineSegments(currentSourceSubtaskSegments());
-  const currentSegments = normalizeTimelineSegments(activeTimelineSegments());
+  const currentSegments = hasObject ? normalizeTimelineSegments(activeTimelineSegments()) : [];
   const sourceBps = sourceBreakpoints();
-  const currentBps = normalizeBreakpoints(subtaskBreakpoints);
+  const currentBps = hasObject ? normalizeBreakpoints(subtaskBreakpoints) : [];
   const sourceText = sourceSubtaskInfoText();
-  const minBp = minBreakpointCount();
-  const maxBp = maxBreakpointCount();
-  const extraBp = optionalExtraBreakpointCount();
+  const minBp = hasObject ? minBreakpointCount() : 0;
+  const maxBp = hasObject ? maxBreakpointCount() : 0;
+  const extraBp = hasObject ? optionalExtraBreakpointCount() : 0;
   const bpLimitText = maxBp > minBp ? `${minBp}–${maxBp}` : String(minBp);
   const bpSummary = currentBreakpointSummary();
   const sourceEnd = sourceSegments.reduce((mx, seg) => Math.max(mx, Number(seg.end_time) || 0), 0);
@@ -680,7 +709,10 @@ function renderSubtaskTimeline() {
     : "";
   info.classList.toggle("warn", Boolean(sourceMismatch));
   const extraHint = extraBp > 0 ? `；该任务允许额外 +${extraBp} 个可选断点` : "";
-  info.textContent = `${sourceText}；${sourceHint}；红色=当前可保存断点 ${currentBps.length}/${bpLimitText}${bpSummary ? `：${bpSummary}` : ""}。上限=${maxBp}${extraHint}；按 S 或按钮添加/取消，Reset 清空当前断点。${mismatchHint}`;
+  const currentHint = hasObject
+    ? `红色=当前可保存断点 ${currentBps.length}/${bpLimitText}${bpSummary ? `：${bpSummary}` : ""}。上限=${maxBp}${extraHint}；按 S 或按钮添加/取消，Reset 清空当前断点。`
+    : `先选择 object 后再统计/保存当前断点；未选择前只显示灰色原始参考。`;
+  info.textContent = `${sourceText}；${sourceHint}；${currentHint}${mismatchHint}`;
 
   if (duration <= 0) {
     updateTimelinePlayhead();
@@ -840,14 +872,14 @@ function clearSegment(subtaskId) {
 }
 
 function subtaskCompletion() {
-  const baseSubtasks = expectedSubtasks();
-  const optionalExtraBreakpoints = optionalExtraBreakpointCount();
+  const baseSubtasks = selectedSubtasks();
+  const optionalExtraBreakpoints = 0;
   const expectedBreakpoints = Math.max(0, baseSubtasks.length - 1);
   const maxBreakpoints = expectedBreakpoints + optionalExtraBreakpoints;
   const breakpoints = normalizeBreakpoints(subtaskBreakpoints);
-  const effectiveCount = baseSubtasks.length + Math.min(optionalExtraBreakpoints, Math.max(0, breakpoints.length - expectedBreakpoints));
+  const effectiveCount = baseSubtasks.length;
   const breakpointComplete = baseSubtasks.length > 0
-    ? breakpoints.length >= expectedBreakpoints && breakpoints.length <= maxBreakpoints
+    ? breakpoints.length === expectedBreakpoints
     : breakpoints.length === 0;
   const complete = breakpointComplete
     ? effectiveCount
@@ -878,7 +910,7 @@ function renderSubtasks() {
   warning.className = "subtask-warning";
 
   if (!object) {
-    summary.textContent = `先选择 object；如果 action 为 none，只需要标 N-1 个断点生成 N 段。${sourceSubtaskInfoText()}。`;
+    summary.textContent = `先选择 object 和任务模式。整个任务使用全部 subtask；任务片段需要勾选若干 subtask。断点数必须等于选中 subtask 数 - 1。${sourceSubtaskInfoText()}。`;
     renderSubtaskTimeline();
     return;
   }
@@ -893,24 +925,21 @@ function renderSubtasks() {
 
   ensureSubtaskSegments();
   const completion = subtaskCompletion();
-  const subtasks = effectiveSubtasks(object);
+  const subtasks = expectedSubtasks(object);
+  const selected = selectedSubtasks(object);
   const expected = completion.expected;
-  const required = selectedAction === "none";
+  const required = true;
   const sourceText = sourceSubtaskSegmentCount != null
     ? `源 parquet 分段：${sourceSubtaskSegmentCount} 段（${sourceSubtaskStatus}）。`
     : `源 parquet 分段：未读取。`;
-  const sourceMatches = sourceSubtaskMatchesExpected(completion.baseExpected, completion.expected);
-  const needsManual = subtaskNeedsManualReview(completion.baseExpected, completion.expected);
-  const breakpointTextForSummary = completion.maxBreakpoints > completion.expectedBreakpoints
-    ? `${completion.expectedBreakpoints}–${completion.maxBreakpoints}`
-    : `${completion.expectedBreakpoints}`;
-  const extraText = completion.optionalExtraBreakpoints > 0
-    ? `该任务可额外 +${completion.optionalExtraBreakpoints} 个可选断点；`
-    : "";
-  summary.textContent = `${object} 使用 ${templateKey} 模板：标准 ${completion.baseExpected} 段，需要 ${breakpointTextForSummary} 个断点。当前断点 ${completion.breakpoints}/${breakpointTextForSummary}，当前生成 ${expected} 段。${extraText}${sourceText}${required ? " 当前 action=none。" : " 当前 action 非 none，分段不强制但建议核对。"}`;
+  const sourceMatches = selectedTaskMode === "overall" && sourceSubtaskMatchesExpected(completion.baseExpected, completion.expected);
+  const needsManual = selectedTaskMode === "overall" && subtaskNeedsManualReview(completion.baseExpected, completion.expected);
+  const breakpointTextForSummary = `${completion.expectedBreakpoints}`;
+  const selectedNames = selected.map((st) => st.subtask_name || st.label).join(" + ") || "未选择";
+  summary.textContent = `${object} 使用 ${templateKey} 模板。当前模式：${selectedTaskMode === "overall" ? "整个任务" : "任务片段"}；选中 ${selected.length} 段：${selectedNames}；必须 ${breakpointTextForSummary} 个断点。当前断点 ${completion.breakpoints}/${breakpointTextForSummary}。${sourceText}`;
   if (required && !completion.breakpointComplete) {
     const delta = completion.expectedBreakpoints - completion.breakpoints;
-    warning.textContent = delta > 0 ? `需补 ${delta} 个断点` : `多 ${completion.breakpoints - completion.maxBreakpoints} 个断点`;
+    warning.textContent = delta > 0 ? `需补 ${delta} 个断点` : `多 ${completion.breakpoints - completion.expectedBreakpoints} 个断点`;
     warning.classList.add("warn");
   } else if (needsManual && !subtaskEdited) {
     warning.textContent = `源分段不匹配，需人工确认`;
@@ -934,103 +963,65 @@ function renderSubtasks() {
 
   for (let i = 0; i < subtasks.length; i += 1) {
     const st = subtasks[i];
+    const isSelected = selectedTaskMode !== "fragment" || selectedSubtaskIds.map(String).includes(String(st.id));
     const seg = subtaskSegments[st.id] || {};
     const row = document.createElement("div");
-    row.className = "subtask-row";
+    row.className = `subtask-row${isSelected ? "" : " subtask-row-unselected"}`;
+    const selector = selectedTaskMode === "fragment"
+      ? `<label class="subtask-select"><input type="checkbox" data-subtask-select="${st.id}" ${isSelected ? "checked" : ""} /> 选中</label>`
+      : `<span class="subtask-select overall">整体任务包含</span>`;
     row.innerHTML = `
+      ${selector}
       <div class="subtask-title">
-        <strong>${st.id}. ${st.label}${st.optional_extra ? "（可选额外段）" : ""}</strong>
+        <strong>${st.id}. ${st.subtask_name || st.label}</strong>
         <span>${st.prompt}</span>
       </div>
       <div class="subtask-times">
-        frame: <code>${seg.start_frame ?? "-"}</code>
+        ${isSelected ? `frame: <code>${seg.start_frame ?? "-"}</code>
         → <code>${seg.end_frame ?? "-"}</code>
-        <span class="muted">(${seg.start_time != null ? formatTime(seg.start_time) : "-"} → ${seg.end_time != null ? formatTime(seg.end_time) : "-"})</span>
+        <span class="muted">(${seg.start_time != null ? formatTime(seg.start_time) : "-"} → ${seg.end_time != null ? formatTime(seg.end_time) : "-"})</span>` : `<span class="muted">未选入 task fragment</span>`}
       </div>
     `;
     rows.appendChild(row);
   }
+  rows.querySelectorAll("[data-subtask-select]").forEach((input) => {
+    input.addEventListener("change", () => toggleSelectedSubtask(input.dataset.subtaskSelect));
+  });
   renderSubtaskTimeline();
 }
 
 function buildRecord() {
   const item = items[index];
-  const badVideo = $("badVideo").checked;
-  const object = resolvedObject();
-  const qualityFlags = [];
-  if (badVideo) qualityFlags.push("bad_video");
-  if ($("mainViewSevereOffset").checked) qualityFlags.push("main_view_severe_offset");
-  if ($("hasJump").checked) qualityFlags.push("has_jump");
   ensureSubtaskSegments();
-  const segments = Object.values(subtaskSegments).map((seg) => ({...seg}));
-  const completion = subtaskCompletion();
   const breakpoints = normalizeBreakpoints(subtaskBreakpoints).map((bp, i) => ({
     id: `B${i + 1}`,
-    frame: bp.frame,
-    time: Math.round(bp.time * 1000) / 1000,
-    source: bp.source || null,
-    preloaded: Boolean(bp.preloaded)
+    frame: bp.frame
   }));
-  const templateKey = templateKeyForObject(object);
-  const sourceMatchesExpected = sourceSubtaskMatchesExpected(completion.baseExpected, completion.expected);
-  const needsManualReview = subtaskNeedsManualReview(completion.baseExpected, completion.expected);
   return {
-    item_id: item.item_id,
-    demo_timestamp: item.demo_timestamp,
-    episode_index: item.episode_index,
-    chassis_type: selectedChassis,
-    chassis_label: chassisLabel(selectedChassis),
-    action_prefix: selectedAction || "none",
-    object_code: selectedObject,
-    object: object,
-    custom_object_text: selectedObject === "custom_object" ? $("customObjectInput").value.trim() : "",
-    canonical_label: canonicalLabel(),
-    bad_video: badVideo,
-    main_view_severe_offset: $("mainViewSevereOffset").checked,
-    has_jump: $("hasJump").checked,
-    quality_flags: qualityFlags,
-    subtask_template: templateKey,
-    subtask_expected_count: completion.expected,
-    subtask_base_expected_count: completion.baseExpected,
-    subtask_expected_breakpoint_count: completion.expectedBreakpoints,
-    subtask_max_breakpoint_count: completion.maxBreakpoints,
-    subtask_optional_extra_breakpoints: completion.optionalExtraBreakpoints,
-    subtask_breakpoint_count: completion.breakpoints,
-    subtask_complete_count: completion.complete,
-    subtask_complete: completion.expected > 0 ? completion.breakpointComplete : null,
-    subtask_source_status: sourceSubtaskStatus,
-    subtask_source_segment_count: sourceSubtaskSegmentCount,
-    subtask_source_matches_expected: sourceMatchesExpected,
-    subtask_needs_manual_review: needsManualReview,
-    subtask_manual_edited: subtaskEdited,
-    subtask_breakpoints: breakpoints,
-    subtask_segments: segments,
-    note: $("noteInput").value.trim(),
-    ui_version: config.version,
-    review_seconds: Math.round(((Date.now() - startedAt) / 1000) * 10) / 10,
-    created_at: new Date().toISOString()
+    episode_index: Number(item.episode_index),
+    demo_timestamp: String(item.demo_timestamp),
+    task_name: taskName() === "-" ? "" : taskName(),
+    subtask_breakpoints: breakpoints.map((bp) => String(bp.frame)),
+    camera_shift: $("mainViewSevereOffset").checked,
+    bad_demo: $("badVideo").checked,
+    "是否跳变": $("hasJump").checked,
+    chasis_label: compactChassisLabel(selectedChassis)
   };
 }
 
 function validateRecord(record) {
-  if (!record.chassis_type) return "请先选择机箱类型：大机箱或小机箱。每条都必须选择后才能保存。";
-  if (record.bad_video) return "";
-  if (!record.object_code) return "请先选择任务物体（1 cpu / 2 disk / 3 gpu / 4 ram / 5 ram2 / 8 自定义），再保存并进入下一条。";
-  if (record.object_code === "custom_object" && !record.custom_object_text.trim()) {
-    return "选择 8 自定义时，需要填写自定义物体名。";
+  if (!record.chasis_label) return "请先选择机箱类型：大机箱或小机箱。每条都必须选择后才能保存。";
+  if (!selectedObject) return "请先选择任务物体（1 cpu / 2 disk / 3 gpu / 4 ram / 5 ram2），再保存并进入下一条。";
+  if (!record.task_name) return "请先选择完整任务，或在任务片段模式下至少选择一个子任务。";
+  const completion = subtaskCompletion();
+  if (selectedTaskMode === "fragment" && selectedSubtaskIds.length === 0) {
+    return "任务片段模式下必须至少选择一个子任务。";
   }
-  if (!record.object) return "正常视频至少要选一个物体；如果看不清请勾 bad video。";
-  if (record.action_prefix === "none" && record.subtask_expected_count > 0 && !record.subtask_complete) {
-    const minBp = record.subtask_expected_breakpoint_count;
-    const maxBp = record.subtask_max_breakpoint_count ?? minBp;
-    const bpText = maxBp > minBp ? `${minBp}–${maxBp}` : `${minBp}`;
-    const extraText = record.subtask_optional_extra_breakpoints > 0
-      ? `（允许 ${record.subtask_optional_extra_breakpoints} 个可选额外断点/段）`
-      : "";
-    return `action=none 表示完整任务，需要 ${bpText} 个断点生成标准 ${record.subtask_base_expected_count ?? record.subtask_expected_count} 段${extraText}；当前 ${record.subtask_breakpoint_count}/${bpText}。`;
+  if (!completion.breakpointComplete) {
+    return `${selectedTaskMode === "overall" ? "整个任务" : "任务片段"} ${record.task_name} 需要 ${completion.expectedBreakpoints} 个断点；当前 ${completion.breakpoints}/${completion.expectedBreakpoints}。`;
   }
-  if (record.action_prefix === "none" && record.subtask_expected_count > 0 && record.subtask_needs_manual_review && !record.subtask_manual_edited) {
-    return `源 subtask 与当前任务模板不一致或缺失：源 ${record.subtask_source_segment_count ?? 0} 段，当前标准需要 ${record.subtask_base_expected_count ?? record.subtask_expected_count} 段。请人工确认/重标分段后再保存。`;
+  if (selectedTaskMode === "overall" && subtaskNeedsManualReview(completion.baseExpected, completion.expected) && !subtaskEdited) {
+    return `源 subtask 与当前任务模板不一致或缺失：源 ${sourceSubtaskSegmentCount ?? 0} 段，当前标准需要 ${completion.expected} 段。请人工确认/重标分段后再保存。`;
   }
   return "";
 }
@@ -1053,7 +1044,7 @@ async function saveAndNext() {
     const payload = await res.json();
     if (!payload.ok) throw new Error(payload.error || "save failed");
     annotations[record.demo_timestamp] = record;
-    $("saveStatus").textContent = `已保存：${record.canonical_label}`;
+    $("saveStatus").textContent = `已保存：${record.task_name}`;
     localStorage.setItem("last_annotation_backup", JSON.stringify(record));
     nextItem();
   } catch (err) {
@@ -1076,20 +1067,6 @@ function setupHandlers() {
   $("badVideo").onchange = refreshCanonical;
   $("mainViewSevereOffset").onchange = refreshCanonical;
   $("hasJump").onchange = refreshCanonical;
-
-  $("customObjectInput").addEventListener("input", () => {
-    customObjectText = $("customObjectInput").value;
-    renderSubtasks();
-    refreshCanonical();
-  });
-  $("customObjectInput").addEventListener("keydown", (ev) => {
-    if (ev.key === "Enter") {
-      ev.preventDefault();
-      saveAndNext();
-    } else {
-      ev.stopPropagation();
-    }
-  });
 
   const beginSeek = () => {
     isSeeking = true;
@@ -1154,27 +1131,12 @@ function setupHandlers() {
       return;
     }
     if (key === "0") {
-      setAction("none");
-      ev.preventDefault();
-      return;
-    }
-    if (key.toLowerCase() === "q") {
-      setAction("pick_up");
-      ev.preventDefault();
-      return;
-    }
-    if (key.toLowerCase() === "w") {
-      setAction("insert");
-      ev.preventDefault();
-      return;
-    }
-    if (key.toLowerCase() === "e") {
-      setAction("pick_up_and_insert");
+      setTaskMode("overall");
       ev.preventDefault();
       return;
     }
     if (key === "9") {
-      setAction("other_action");
+      setTaskMode("fragment");
       ev.preventDefault();
       return;
     }

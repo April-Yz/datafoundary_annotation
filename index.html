@@ -11,7 +11,7 @@
     <header class="topbar">
       <div>
         <h1>任务名称标注</h1>
-        <p class="muted">不显示原 prompt。每条都必须选择大机箱/小机箱；正常视频：选物体 → Enter。子任务才选 action；坏视频按 B，主视角偏移按 C，跳变按 D。</p>
+        <p class="muted">不显示原 prompt。每条都必须选择大机箱/小机箱；正常视频：选物体和任务模式。整体任务保存总任务名；任务片段需要多选子任务并标断点。坏视频按 B，主视角偏移按 C，跳变按 D。</p>
       </div>
       <div class="status-card">
         <div id="progressText">Loading…</div>
@@ -106,17 +106,13 @@
         <p class="required-hint">每条都必须选择：大机箱或小机箱。未选择时不能保存。</p>
       </div>
       <div class="label-column">
-        <h2>物体 Object（默认只选这个）</h2>
+        <h2>任务物体 Object</h2>
         <div id="objectButtons" class="button-grid"></div>
-        <label id="customObjectBox" class="custom-object hidden">
-          自定义物体名
-          <input id="customObjectInput" type="text" placeholder="例如 motherboard / cable / screw" />
-        </label>
       </div>
       <div class="label-column">
-        <h2>动作前缀 Action（默认 none）</h2>
+        <h2>任务模式 Task mode</h2>
         <div id="actionButtons" class="button-grid"></div>
-        <p class="muted">快捷键：0 none，Q pick_up，W insert，E pick_up_and_insert，9 other_action。</p>
+        <p class="muted">快捷键：0 整个任务，9 任务片段。任务片段需要在下方多选子任务。</p>
       </div>
     </section>
 
@@ -124,7 +120,7 @@
       <div class="subtask-header">
         <div>
           <h2>Subtask 分段核对</h2>
-          <p id="subtaskSummary" class="muted">先选择 object；如果 action 为 none，只需要标 N-1 个断点生成 N 段。</p>
+          <p id="subtaskSummary" class="muted">先选择 object 和任务模式。整个任务使用全部 subtask；任务片段需要勾选若干 subtask。断点数必须等于选中 subtask 数 - 1。</p>
         </div>
         <div id="subtaskWarning" class="subtask-warning"></div>
       </div>
@@ -146,13 +142,13 @@
       <h2>快捷键</h2>
       <p>
         机箱：6 大机箱 / 7 小机箱（必选）。
-        物体：1 cpu / 2 disk / 3 gpu / 4 ram / 5 ram2 / 8 自定义。
-        动作：0 none / Q pick_up / W insert / E pick_up_and_insert / 9 other。
+        物体：1 cpu / 2 disk / 3 gpu / 4 ram / 5 ram2。
+        任务模式：0 整个任务 / 9 任务片段。
         B bad video，C 主视角严重偏移，D 跳变，Enter 保存，←/→ 切换，Space 播放暂停，`,`/`.` 逐帧，`&lt;`/`&gt;` 十帧，`[`/`]` 降速/升速，S 在当前帧添加或取消断点。
       </p>
       <p class="muted">保存文件：<code>annotations.jsonl</code> 和 <code>annotations_latest.json</code>。</p>
     </section>
   </main>
-  <script src="app.js?v=20260702v14"></script>
+  <script src="app.js?v=20260703v15"></script>
 </body>
 </html>
