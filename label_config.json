@@ -1,6 +1,6 @@
 {
-  "version": "2026-07-03-v15b-gpu-overall-3-or-4-breakpoints",
-  "description": "Task relabel UI config. Normal workflow: choose chassis type, choose object, choose overall task or task fragment. Fragment labels are composed from selected subtask names. GPU overall accepts 3 or 4 breakpoints.",
+  "version": "2026-07-08-v15c-fragment-subtask-hotkeys",
+  "description": "Task relabel UI config. Normal workflow: choose chassis type, choose object, choose overall task or task fragment. Fragment labels are composed from selected subtask names. GPU overall accepts 3 or 4 breakpoints. Fragment subtask hotkeys use Q/W/E/R/T/Y.",
   "chassis_types": [
     {"key": "6", "value": "large_case", "label": "6 大机箱"},
     {"key": "7", "value": "small_case", "label": "7 小机箱"}
@@ -68,6 +68,7 @@
     "object_digits": "1-5",
     "task_mode_overall": "0",
     "task_mode_fragment": "9",
+    "fragment_subtask_select": "q,w,e,r,t,y",
     "bad_video": "b",
     "main_view_severe_offset": "c",
     "has_jump": "d",

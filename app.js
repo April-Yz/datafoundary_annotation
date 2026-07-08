@@ -20,6 +20,7 @@ let isSeeking = false;
 
 const FPS = 15;
 const SPEEDS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+const SUBTASK_HOTKEYS = ["q", "w", "e", "r", "t", "y"];
 const $ = (id) => document.getElementById(id);
 
 async function fetchJson(path, fallback = null) {
@@ -336,6 +337,26 @@ function toggleSelectedSubtask(subtaskId) {
   ensureSubtaskSegments();
   renderSubtasks();
   refreshCanonical();
+}
+
+function subtaskHotkeyForIndex(index) {
+  return SUBTASK_HOTKEYS[index] || "";
+}
+
+function toggleSubtaskByHotkey(key) {
+  if (selectedTaskMode !== "fragment") return false;
+  const object = resolvedObject();
+  if (!object) return false;
+  const hotkey = String(key || "").toLowerCase();
+  const subtaskIndex = SUBTASK_HOTKEYS.indexOf(hotkey);
+  if (subtaskIndex < 0) return false;
+  const subtasks = expectedSubtasks(object);
+  const subtask = subtasks[subtaskIndex];
+  if (!subtask) return false;
+  toggleSelectedSubtask(subtask.id);
+  $("saveStatus").classList.remove("error");
+  $("saveStatus").textContent = `已${selectedSubtaskIds.map(String).includes(String(subtask.id)) ? "选择" : "取消"} ${subtask.subtask_name || subtask.label}`;
+  return true;
 }
 
 function renderConfig() {
@@ -958,7 +979,10 @@ function renderSubtasks() {
   const extraText = completion.optionalExtraBreakpoints > 0
     ? `；允许额外 +${completion.optionalExtraBreakpoints} 个可选断点/段`
     : "";
-  summary.textContent = `${object} 使用 ${templateKey} 模板。当前模式：${selectedTaskMode === "overall" ? "整个任务" : "任务片段"}；选中 ${selected.length} 段：${selectedNames}${extraText}；必须 ${breakpointTextForSummary} 个断点。当前断点 ${completion.breakpoints}/${breakpointTextForSummary}。${sourceText}`;
+  const hotkeyHint = selectedTaskMode === "fragment"
+    ? ` Subtask 快捷键：${subtasks.map((st, i) => `${subtaskHotkeyForIndex(i).toUpperCase()}=${st.subtask_name || st.label}`).join("，")}。`
+    : "";
+  summary.textContent = `${object} 使用 ${templateKey} 模板。当前模式：${selectedTaskMode === "overall" ? "整个任务" : "任务片段"}；选中 ${selected.length} 段：${selectedNames}${extraText}；必须 ${breakpointTextForSummary} 个断点。当前断点 ${completion.breakpoints}/${breakpointTextForSummary}。${sourceText}${hotkeyHint}`;
   if (required && !completion.breakpointComplete) {
     warning.textContent = completion.breakpoints < completion.expectedBreakpoints
       ? `需补 ${completion.expectedBreakpoints - completion.breakpoints} 个断点`
@@ -990,8 +1014,9 @@ function renderSubtasks() {
     const seg = subtaskSegments[st.id] || {};
     const row = document.createElement("div");
     row.className = `subtask-row${isSelected ? "" : " subtask-row-unselected"}`;
+    const hotkey = subtaskHotkeyForIndex(i).toUpperCase();
     const selector = selectedTaskMode === "fragment"
-      ? `<label class="subtask-select"><input type="checkbox" data-subtask-select="${st.id}" ${isSelected ? "checked" : ""} /> 选中</label>`
+      ? `<label class="subtask-select"><input type="checkbox" data-subtask-select="${st.id}" ${isSelected ? "checked" : ""} /> ${hotkey ? `${hotkey} ` : ""}选中</label>`
       : `<span class="subtask-select overall">整体任务包含</span>`;
     row.innerHTML = `
       ${selector}
@@ -1163,6 +1188,10 @@ function setupHandlers() {
     }
     if (key === "9") {
       setTaskMode("fragment");
+      ev.preventDefault();
+      return;
+    }
+    if (!(ev.altKey || ev.metaKey || ev.ctrlKey) && toggleSubtaskByHotkey(key)) {
       ev.preventDefault();
       return;
     }
