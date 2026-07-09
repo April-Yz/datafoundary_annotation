@@ -236,15 +236,19 @@ function savedBreakpoints(record) {
   return [];
 }
 
+function hasSavedBreakpointData(record) {
+  return Boolean(record)
+    && (Array.isArray(record.subtask_breakpoints) || Array.isArray(record.subtask_segments));
+}
+
 function sourceBreakpoints() {
   return segmentsToBreakpoints(currentSourceSubtaskSegments());
 }
 
 function defaultBreakpointsForItem(item = items[index] || {}) {
   const saved = annotations[item.demo_timestamp];
-  const fromSaved = savedBreakpoints(saved);
-  if (fromSaved.length) {
-    return {breakpoints: fromSaved, source: "saved"};
+  if (hasSavedBreakpointData(saved)) {
+    return {breakpoints: savedBreakpoints(saved), source: "saved"};
   }
   const fromSource = sourceBreakpoints();
   if (fromSource.length) {
