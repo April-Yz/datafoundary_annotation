@@ -1,5 +1,5 @@
 {
-  "version": "2026-07-09-v15d-saved-empty-breakpoints",
+  "version": "2026-07-09-v15e-string-breakpoint-load",
   "description": "Task relabel UI config. Normal workflow: choose chassis type, choose object, choose overall task or task fragment. Fragment labels are composed from selected subtask names. GPU overall accepts 3 or 4 breakpoints. Fragment subtask hotkeys use Q/W/E/R/T/Y.",
   "chassis_types": [
     {"key": "6", "value": "large_case", "label": "6 大机箱"},

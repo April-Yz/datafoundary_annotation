@@ -192,7 +192,7 @@ function normalizeBreakpoints(points) {
   const maxFrame = currentMaxFrame();
   const byFrame = new Map();
   for (const point of points || []) {
-    const rawFrame = typeof point === "number" ? point : point?.frame;
+    const rawFrame = (typeof point === "number" || typeof point === "string") ? point : point?.frame;
     const frame = Math.round(Number(rawFrame));
     if (!Number.isFinite(frame)) continue;
     const bounded = Math.max(0, Math.min(Math.max(0, maxFrame - 1), frame));
