@@ -124,7 +124,11 @@ function templateKeyForObject(objectValue = resolvedObject()) {
 
 function expectedSubtasks(objectValue = resolvedObject()) {
   const key = templateKeyForObject(objectValue);
-  return key ? (config.subtask_schemas?.[key] || []) : [];
+  const subtasks = key ? (config.subtask_schemas?.[key] || []) : [];
+  if (selectedChassis === "small_case" && objectValue === "cpu") {
+    return subtasks.filter((subtask) => subtask.subtask_name !== "cpu_lever2");
+  }
+  return subtasks;
 }
 
 function optionalExtraBreakpointCount(objectValue = resolvedObject()) {
@@ -318,6 +322,13 @@ function setChassis(value) {
   document.querySelectorAll("[data-chassis]").forEach((btn) => {
     btn.classList.toggle("selected", btn.dataset.chassis === selectedChassis);
   });
+  if (selectedObject === "cpu" && selectedChassis === "small_case") {
+    const validSubtaskIds = new Set(expectedSubtasks("cpu").map((subtask) => String(subtask.id)));
+    selectedSubtaskIds = selectedSubtaskIds.filter((id) => validSubtaskIds.has(String(id)));
+  }
+  ensureSubtaskSegments();
+  renderSubtasks();
+  refreshCanonical();
 }
 
 function setTaskMode(value) {
