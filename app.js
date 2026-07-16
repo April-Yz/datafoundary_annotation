@@ -501,18 +501,10 @@ function loadExistingForItem(item) {
 
   if (saved) {
     selectedChassis = saved.chassis_type || saved.chassis || (saved.chasis_label === "large" ? "large_case" : saved.chasis_label === "small" ? "small_case" : "");
-    const parsedTask = parseTaskName(saved.task_name || saved.canonical_label || "");
-    selectedObject = parsedTask.object || saved.object_code || saved.object || "";
-    if (selectedObject === "ram1") selectedObject = "ram";
-    if (!config.objects.some((o) => o.value === selectedObject)) selectedObject = "";
-    selectedTaskMode = parsedTask.mode || (saved.action_prefix && saved.action_prefix !== "none" ? "fragment" : "overall");
-    selectedSubtaskIds = parsedTask.subtaskIds || [];
     $("badVideo").checked = Boolean(saved.bad_demo ?? saved.bad_video);
     $("mainViewSevereOffset").checked = Boolean(saved.camera_shift ?? saved.main_view_severe_offset);
     $("hasJump").checked = Boolean(saved["是否跳变"] ?? saved.has_jump);
-    $("noteInput").value = saved.note || "";
-    subtaskEdited = true;
-    $("saveStatus").textContent = `已标注：${saved.task_name || saved.canonical_label || "bad_demo"}`;
+    $("saveStatus").textContent = `已标注：${compactChassisLabel(selectedChassis) === "large" ? "大机箱" : "小机箱"}`;
   } else {
     $("saveStatus").textContent = "未保存";
   }
@@ -1055,16 +1047,9 @@ function renderSubtasks() {
 
 function buildRecord() {
   const item = items[index];
-  ensureSubtaskSegments();
-  const breakpoints = normalizeBreakpoints(subtaskBreakpoints).map((bp, i) => ({
-    id: `B${i + 1}`,
-    frame: bp.frame
-  }));
   return {
     episode_index: Number(item.episode_index),
     demo_timestamp: String(item.demo_timestamp),
-    task_name: taskName() === "-" ? "" : taskName(),
-    subtask_breakpoints: breakpoints.map((bp) => String(bp.frame)),
     camera_shift: $("mainViewSevereOffset").checked,
     bad_demo: $("badVideo").checked,
     "是否跳变": $("hasJump").checked,
@@ -1074,21 +1059,6 @@ function buildRecord() {
 
 function validateRecord(record) {
   if (!record.chasis_label) return "请先选择机箱类型：大机箱或小机箱。每条都必须选择后才能保存。";
-  if (!selectedObject) return "请先选择任务物体（1 cpu / 2 disk / 3 gpu / 4 ram / 5 ram2），再保存并进入下一条。";
-  if (!record.task_name) return "请先选择完整任务，或在任务片段模式下至少选择一个子任务。";
-  const completion = subtaskCompletion();
-  if (selectedTaskMode === "fragment" && selectedSubtaskIds.length === 0) {
-    return "任务片段模式下必须至少选择一个子任务。";
-  }
-  if (!completion.breakpointComplete) {
-    const bpText = completion.maxBreakpoints > completion.expectedBreakpoints
-      ? `${completion.expectedBreakpoints}–${completion.maxBreakpoints}`
-      : `${completion.expectedBreakpoints}`;
-    return `${selectedTaskMode === "overall" ? "整个任务" : "任务片段"} ${record.task_name} 需要 ${bpText} 个断点；当前 ${completion.breakpoints}/${bpText}。`;
-  }
-  if (selectedTaskMode === "overall" && subtaskNeedsManualReview(completion.baseExpected, completion.expected) && !subtaskEdited) {
-    return `源 subtask 与当前任务模板不一致或缺失：源 ${sourceSubtaskSegmentCount ?? 0} 段，当前标准需要 ${completion.expected} 段。请人工确认/重标分段后再保存。`;
-  }
   return "";
 }
 
@@ -1110,7 +1080,7 @@ async function saveAndNext() {
     const payload = await res.json();
     if (!payload.ok) throw new Error(payload.error || "save failed");
     annotations[record.demo_timestamp] = record;
-    $("saveStatus").textContent = `已保存：${record.task_name}`;
+    $("saveStatus").textContent = `已保存：${record.chasis_label === "large" ? "大机箱" : "小机箱"}`;
     localStorage.setItem("last_annotation_backup", JSON.stringify(record));
     nextItem();
   } catch (err) {
@@ -1190,26 +1160,6 @@ function setupHandlers() {
       ev.preventDefault();
       return;
     }
-    if (((key >= "1" && key <= "5") || key === "8") && !(ev.altKey || ev.metaKey || ev.ctrlKey)) {
-      const obj = config.objects.find((o) => o.key === key);
-      if (obj) setObject(obj.value);
-      ev.preventDefault();
-      return;
-    }
-    if (key === "0") {
-      setTaskMode("overall");
-      ev.preventDefault();
-      return;
-    }
-    if (key === "9") {
-      setTaskMode("fragment");
-      ev.preventDefault();
-      return;
-    }
-    if (!(ev.altKey || ev.metaKey || ev.ctrlKey) && toggleSubtaskByHotkey(key)) {
-      ev.preventDefault();
-      return;
-    }
     if (key.toLowerCase() === "b") {
       $("badVideo").checked = !$("badVideo").checked;
       refreshCanonical();
@@ -1225,11 +1175,6 @@ function setupHandlers() {
     if (key.toLowerCase() === "d") {
       $("hasJump").checked = !$("hasJump").checked;
       refreshCanonical();
-      ev.preventDefault();
-      return;
-    }
-    if (key.toLowerCase() === "s") {
-      toggleBreakpointAtCurrentFrame();
       ev.preventDefault();
       return;
     }

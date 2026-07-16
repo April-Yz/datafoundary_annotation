@@ -21,6 +21,21 @@ body {
   color: var(--ink);
 }
 
+.simplified-hidden {
+  display: none !important;
+}
+
+.mode-banner {
+  display: inline-block;
+  margin: 0.25rem 0;
+  padding: 0.45rem 0.7rem;
+  border: 2px solid #b91c1c;
+  border-radius: 0.5rem;
+  color: #991b1b;
+  background: #fef2f2;
+  font-weight: 700;
+}
+
 main {
   max-width: 1500px;
   margin: 0 auto;

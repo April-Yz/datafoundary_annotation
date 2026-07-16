@@ -3,15 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Task Label Annotation</title>
+  <title>565h+ Chassis &amp; Quality Annotation</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main>
     <header class="topbar">
       <div>
-        <h1>任务名称标注</h1>
-        <p class="muted">不显示原 prompt。每条都必须选择大机箱/小机箱；正常视频：选物体和任务模式。整体任务保存总任务名；任务片段需要多选子任务并标断点。坏视频按 B，主视角偏移按 C，跳变按 D。</p>
+        <h1>565h 后简化标注</h1>
+        <p class="mode-banner">仅标注机箱类型与 B/C/D 三项异常；不标注任务名称或 Subtask。</p>
+        <p class="muted">每条都必须选择大机箱或小机箱。坏视频按 B，主视角严重偏移按 C，跳变按 D。</p>
       </div>
       <div class="status-card">
         <div id="progressText">Loading…</div>
@@ -79,7 +80,7 @@
         </span>
       </div>
       <input id="syncSeek" class="seek-full" type="range" min="0" max="0" value="0" step="0.0666667" />
-      <div class="subtask-timeline-wrap">
+      <div class="subtask-timeline-wrap simplified-hidden" aria-hidden="true">
         <div id="subtaskTimelineInfo" class="timeline-info">灰色为原始参考分段；红色为当前可保存断点。把视频停在目标帧，按 S 添加或取消断点。</div>
         <div id="subtaskTimeline" class="subtask-timeline">
           <div id="timelinePlayhead" class="timeline-playhead"></div>
@@ -105,18 +106,18 @@
         <div id="chassisButtons" class="button-grid chassis-grid"></div>
         <p class="required-hint">每条都必须选择：大机箱或小机箱。未选择时不能保存。</p>
       </div>
-      <div class="label-column">
+      <div class="label-column simplified-hidden" aria-hidden="true">
         <h2>任务物体 Object</h2>
         <div id="objectButtons" class="button-grid"></div>
       </div>
-      <div class="label-column">
+      <div class="label-column simplified-hidden" aria-hidden="true">
         <h2>任务模式 Task mode</h2>
         <div id="actionButtons" class="button-grid"></div>
         <p class="muted">快捷键：0 整个任务，9 任务片段。任务片段需要在下方多选子任务。</p>
       </div>
     </section>
 
-    <section class="subtask-panel">
+    <section class="subtask-panel simplified-hidden" aria-hidden="true">
       <div class="subtask-header">
         <div>
           <h2>Subtask 分段核对</h2>
@@ -128,11 +129,11 @@
     </section>
 
     <section class="form-panel">
-      <label class="note-label">
+      <label class="note-label simplified-hidden" aria-hidden="true">
         备注
         <input id="noteInput" type="text" placeholder="可空；例如 gpu 实际是 disk" />
       </label>
-      <div class="canonical">
+      <div class="canonical simplified-hidden" aria-hidden="true">
         当前输出：<code id="canonicalText">-</code>
       </div>
       <button id="saveBtn" class="save-btn">Enter 保存并下一个</button>
@@ -142,14 +143,11 @@
       <h2>快捷键</h2>
       <p>
         机箱：6 大机箱 / 7 小机箱（必选）。
-        物体：1 cpu / 2 disk / 3 gpu / 4 ram / 5 ram2。
-        任务模式：0 整个任务 / 9 任务片段。
-        任务片段 subtask 多选：Q/W/E/R/T/Y 对应第 1–6 个 subtask。
-        B bad video，C 主视角严重偏移，D 跳变，Enter 保存，←/→ 切换，Space 播放暂停，`,`/`.` 逐帧，`&lt;`/`&gt;` 十帧，`[`/`]` 降速/升速，S 在当前帧添加或取消断点。
+        B bad video，C 主视角严重偏移，D 跳变，Enter 保存，←/→ 切换，Space 播放暂停，`,`/`.` 逐帧，`&lt;`/`&gt;` 十帧，`[`/`]` 降速/升速。
       </p>
       <p class="muted">保存文件：<code>annotations.jsonl</code> 和 <code>annotations_latest.json</code>。</p>
     </section>
   </main>
-  <script src="app.js?v=20260709v15e"></script>
+  <script src="app.js?v=20260716-chassis-anomaly-only-v1"></script>
 </body>
 </html>

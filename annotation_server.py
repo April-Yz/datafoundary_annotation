@@ -160,6 +160,40 @@ class AnnotationHandler(SimpleHTTPRequestHandler):
             self._write_json({"ok": False, "error": "missing demo_timestamp"}, HTTPStatus.BAD_REQUEST)
             return
 
+        try:
+            episode_index = int(record["episode_index"])
+        except (KeyError, TypeError, ValueError):
+            self._write_json({"ok": False, "error": "invalid episode_index"}, HTTPStatus.BAD_REQUEST)
+            return
+
+        chasis_label = str(record.get("chasis_label") or "").strip()
+        if chasis_label not in {"large", "small"}:
+            self._write_json(
+                {"ok": False, "error": "chasis_label must be large or small"},
+                HTTPStatus.BAD_REQUEST,
+            )
+            return
+
+        boolean_fields = ("camera_shift", "bad_demo", "是否跳变")
+        invalid_boolean_fields = [name for name in boolean_fields if not isinstance(record.get(name), bool)]
+        if invalid_boolean_fields:
+            self._write_json(
+                {"ok": False, "error": f"invalid boolean fields: {', '.join(invalid_boolean_fields)}"},
+                HTTPStatus.BAD_REQUEST,
+            )
+            return
+
+        # The 565h+ branch intentionally emits a strict six-field schema. This
+        # also strips task/subtask fields from records posted by stale browser tabs.
+        record = {
+            "episode_index": episode_index,
+            "demo_timestamp": ts,
+            "camera_shift": record["camera_shift"],
+            "bad_demo": record["bad_demo"],
+            "是否跳变": record["是否跳变"],
+            "chasis_label": chasis_label,
+        }
+
         jsonl_path = self.package_dir / "annotations.jsonl"
         with jsonl_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
